@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "channel_id": null,
+  "daily_post_enabled": true,
+  "daily_scoreboard_enabled": true,
+  "weekly_roundup_enabled": true,
+  "admin_role_ids": []
+}
