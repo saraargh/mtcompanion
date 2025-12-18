@@ -522,7 +522,7 @@ async def daily_post_task():
 
     await ch.send(build_daily_prompt())
 
-@tasks.loop(time=time(hour=19, minute=10, tzinfo=UK_TZ))
+@tasks.loop(time=time(hour=23, minute=0, tzinfo=UK_TZ))
 async def daily_scoreboard_task():
     settings, _ = load_settings()
     if not settings.get("enabled", True):
