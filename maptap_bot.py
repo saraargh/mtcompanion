@@ -335,7 +335,7 @@ async def on_message(message: discord.Message):
     github_save_json(USERS_PATH, users, users_sha, f"MapTap: user stats update {user_id}")
 
     try:
-        await message.add_reaction("✅")
+        await message.add_reaction("🌏")
     except Exception:
         pass
 
