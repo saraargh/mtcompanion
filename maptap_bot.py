@@ -193,22 +193,35 @@ class MapTapSettingsView(discord.ui.View):
         self.sha = current_sha
         await interaction.response.edit_message(embed=self._panel_embed(), view=self)
 
-    @discord.ui.channel_select(
-        placeholder="Select the MapTap channel",
-        channel_types=[discord.ChannelType.text]
-    )
-    async def channel_select(self, interaction: discord.Interaction, select: discord.ui.ChannelSelect):
-        self.settings["channel_id"] = select.values[0].id
-        await self._save_and_refresh(interaction, "MapTap: set channel")
+    @discord.ui.select(
+    cls=discord.ui.ChannelSelect,
+    placeholder="Select the MapTap channel",
+    channel_types=[discord.ChannelType.text],
+    min_values=1,
+    max_values=1
+)
+async def channel_select(
+    self,
+    interaction: discord.Interaction,
+    select: discord.ui.ChannelSelect
+):
+    self.settings["channel_id"] = select.values[0].id
+    await self._save_and_refresh(interaction, "MapTap: set channel")
+        
 
-    @discord.ui.role_select(
-        placeholder="Select admin roles (optional)",
-        min_values=0,
-        max_values=10
-    )
-    async def role_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
-        self.settings["admin_role_ids"] = [r.id for r in select.values]
-        await self._save_and_refresh(interaction, "MapTap: set admin roles")
+    @discord.ui.select(
+    cls=discord.ui.RoleSelect,
+    placeholder="Select admin roles (optional)",
+    min_values=0,
+    max_values=10
+)
+async def role_select(
+    self,
+    interaction: discord.Interaction,
+    select: discord.ui.RoleSelect
+):
+    self.settings["admin_role_ids"] = [r.id for r in select.values]
+    await self._save_and_refresh(interaction, "MapTap: set admin roles")
 
     @discord.ui.button(label="Toggle Master Enabled", style=discord.ButtonStyle.secondary)
     async def toggle_master(self, interaction: discord.Interaction, _):
