@@ -503,7 +503,6 @@ class SettingsView(discord.ui.View):
         self.btn_rivalry.callback = self._toggle_rivalry
         self.add_item(self.btn_weekly)
         self.add_item(self.btn_rivalry)
-        self.add_item(self.btn_close)
 
         self._refresh_button_styles()
 
@@ -585,8 +584,6 @@ class SettingsView(discord.ui.View):
         self.btn_rivalry.label = self._lbl("Rivalry", self.settings["rivalry_enabled"])
         await self.save_refresh(interaction, "MapTap: toggle rivalry")
 
-    async def _close(self, interaction: discord.Interaction):
-        await interaction.response.edit_message(content="✅ Closed.", embed=None, view=None)
 
 # =========================
 # MapTap Companion Bot (FULL FILE) — PART 2/2
