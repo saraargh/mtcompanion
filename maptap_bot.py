@@ -499,10 +499,8 @@ class SettingsView(discord.ui.View):
         # Row 4: weekly/rivalry/close
         self.btn_weekly = discord.ui.Button(label=self._lbl("Weekly Roundup", self.settings.get("weekly_roundup_enabled", True)), style=discord.ButtonStyle.success, row=4)
         self.btn_rivalry = discord.ui.Button(label=self._lbl("Rivalry", self.settings.get("rivalry_enabled", True)), style=discord.ButtonStyle.success, row=4)
-        self.btn_close = discord.ui.Button(label="Close", style=discord.ButtonStyle.danger, row=4)
         self.btn_weekly.callback = self._toggle_weekly
         self.btn_rivalry.callback = self._toggle_rivalry
-        self.btn_close.callback = self._close
         self.add_item(self.btn_weekly)
         self.add_item(self.btn_rivalry)
         self.add_item(self.btn_close)
