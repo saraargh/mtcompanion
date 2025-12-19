@@ -648,12 +648,12 @@ async def mymaptap(
 
     await interaction.response.send_message(
         f"🗺️ **MapTap Stats — {target.display_name}**\n\n"
-        f"• Rank (all-time): 🏅 **#{rank} of {total_players}**\n"
+        f"• Server Rank: 🏅 **#{rank} of {total_players}**\n"
         f"• Total points (all-time): **{stats['total_points']}**\n"
-        f"• Days played (all-time): **{stats['days_played']}**\n"
+        f"• Days played: **{stats['days_played']}**\n"
         f"• Average score: **{avg}**\n"
         f"• Current streak: 🔥 **{cur} days**\n"
-        f"• Best streak (all-time): 🏆 **{stats.get('best_streak', 0)} days**",
+        f"• Best streak: 🏆 **{stats.get('best_streak', 0)} days**",
         ephemeral=False
     )
 
