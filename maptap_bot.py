@@ -193,6 +193,36 @@ def today_key(dt: Optional[datetime] = None) -> str:
         dt = datetime.now(UK_TZ)
     return dt.date().isoformat()
 
+##rank help
+def calculate_all_time_rank(users: Dict[str, Any], user_id: str) -> Tuple[int, int]:
+    """
+    Returns (rank, total_players)
+    Rank is 1-based.
+    """
+    leaderboard = []
+
+    for uid, data in users.items():
+        try:
+            leaderboard.append((
+                uid,
+                int(data.get("total_points", 0)),
+                int(data.get("days_played", 0))
+            ))
+        except Exception:
+            continue
+
+    # Sort by total points desc, then days played desc
+    leaderboard.sort(key=lambda x: (x[1], x[2]), reverse=True)
+
+    total_players = len(leaderboard)
+
+    for idx, (uid, _, _) in enumerate(leaderboard, start=1):
+        if uid == user_id:
+            return idx, total_players
+
+    return total_players, total_players
+
+
 # =====================================================
 # SAFE REACTION HELPER (supports custom server emoji strings)
 # =====================================================
@@ -509,21 +539,40 @@ class MapTapSettingsView(discord.ui.View):
 # =====================================================
 # SLASH COMMAND: /maptapsettings
 # =====================================================
-@client.tree.command(name="maptapsettings", description="Configure MapTap bot settings")
-async def maptapsettings(interaction: discord.Interaction):
-    settings, sha = load_settings()
+@client.tree.command(name="mymaptap", description="View MapTap stats")
+@app_commands.describe(user="View stats for another user")
+async def mymaptap(
+    interaction: discord.Interaction,
+    user: Optional[discord.Member] = None
+):
+    users, _ = github_load_json(USERS_PATH, {})
+    scores, _ = github_load_json(SCORES_PATH, {})
 
-    if not isinstance(interaction.user, discord.Member):
-        await interaction.response.send_message("❌ Use this in the server, not DMs.", ephemeral=True)
+    target = user or interaction.user
+    user_id = str(target.id)
+    stats = users.get(user_id)
+
+    if not stats or int(stats.get("days_played", 0)) <= 0:
+        await interaction.response.send_message(
+            f"{target.display_name} hasn’t recorded any MapTap scores yet 🗺️",
+            ephemeral=False
+        )
         return
 
-    if not has_admin_access(interaction.user, settings):
-        await interaction.response.send_message("❌ You don’t have permission to manage MapTap settings.", ephemeral=True)
-        return
+    cur = calculate_current_streak(scores, user_id)
+    avg = round(int(stats["total_points"]) / int(stats["days_played"]))
+    rank, total_players = calculate_all_time_rank(users, user_id)
 
-    view = MapTapSettingsView(settings, sha)
-    await interaction.response.send_message(embed=view._embed(), view=view, ephemeral=True)
-
+    await interaction.response.send_message(
+        f"🗺️ **MapTap Stats — {target.display_name}**\n\n"
+        f"• Server Rank: 🏅 **#{rank} of {total_players}**\n"
+        f"• Total points: **{stats['total_points']}**\n"
+        f"• Total Days played: **{stats['days_played']}**\n"
+        f"• Average score: **{avg}**\n"
+        f"• Current streak: 🔥 **{cur} days**\n"
+        f"• Best streak (all-time): 🏆 **{stats.get('best_streak', 0)} days**",
+        ephemeral=False
+    )
 # =====================================================
 # SCORE INGESTION (message listener)
 # =====================================================
