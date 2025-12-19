@@ -18,12 +18,12 @@
     "config_issue": "\u26a0\ufe0f"
   },
   "times": {
-    "daily_post": "13:59",
+    "daily_post": "00:00",
     "daily_scoreboard": "23:30",
     "weekly_roundup": "23:45"
   },
   "last_run": {
-    "daily_post": "2025-12-19",
+    "daily_post": null,
     "daily_scoreboard": null,
     "weekly_roundup": null
   }
