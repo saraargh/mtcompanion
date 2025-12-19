@@ -549,40 +549,37 @@ class MapTapSettingsView(discord.ui.View):
         self.btn_rivalry.label, self.btn_rivalry.style = label, style
 
     def _embed(self) -> discord.Embed:
-        channel_str = f"<#{self.settings['channel_id']}>" if self.settings.get("channel_id") else "Not set"
-        roles = self.settings.get("admin_role_ids", [])
-        roles_str = ", ".join(f"<@&{rid}>" for rid in roles) if roles else "Admins only"
+    channel_str = f"<#{self.settings['channel_id']}>" if self.settings.get("channel_id") else "Not set"
+    roles = self.settings.get("admin_role_ids", [])
+    roles_str = ", ".join(f"<@&{rid}>" for rid in roles) if roles else "Admins only"
 
-        em = self.settings.get("emojis", {})
-        emoji_block = (
-            f"Recorded: {em.get('recorded', DEFAULT_SETTINGS['emojis']['recorded'])}\n"
-            f"Too high: {em.get('too_high', DEFAULT_SETTINGS['emojis']['too_high'])}\n"
-            f"Rescan ingested: {em.get('rescan_ingested', DEFAULT_SETTINGS['emojis']['rescan_ingested'])}"
-        )
+    em = self.settings.get("emojis", {})
+    emoji_block = (
+        f"Recorded: {em.get('recorded','🌏')}\n"
+        f"Too high: {em.get('too_high','❌')}\n"
+        f"Rescan ingested: {em.get('rescan_ingested','🔁')}"
+    )
 
-        sch = self.settings.get("schedule", DEFAULT_SETTINGS["schedule"])
-        weekly_day_name = WEEKDAY_NAMES[int(sch.get("weekly_day", 6))]
-        rivalry_day_name = WEEKDAY_NAMES[int(sch.get("rivalry_day", 4))]
+    sched = self.settings.get("schedule", {})
+    schedule_block = (
+        f"Daily post: **{sched.get('daily_post','00:00')}**\n"
+        f"Daily scoreboard: **{sched.get('daily_scoreboard','23:30')}**\n"
+        f"Weekly roundup: **{weekday_name(sched.get('weekly_day', 6))} {sched.get('weekly_time','23:45')}**\n"
+        f"Rivalry: **{weekday_name(sched.get('rivalry_day', 4))} {sched.get('rivalry_time','19:30')}**"
+    )
 
-        schedule_block = (
-            f"Daily post: **{sch.get('daily_post','00:00')}**\n"
-            f"Daily scoreboard: **{sch.get('daily_scoreboard','23:30')}**\n"
-            f"Weekly roundup: **{weekly_day_name} {sch.get('weekly_time','23:45')}**\n"
-            f"Rivalry: **{rivalry_day_name} {sch.get('rivalry_time','19:30')}** (gap ≤ **{sch.get('rivalry_gap',25)}**)"
-        )
-
-        e = discord.Embed(
-            title="🗺️ MapTap Settings",
-            description=(
-                f"**Channel:** {channel_str}\n"
-                f"**Admin roles:** {roles_str}\n\n"
-                f"**Schedule (UK):**\n{schedule_block}\n\n"
-                f"**Reactions:**\n{emoji_block}"
-            ),
-            color=0xF1C40F
-        )
-        e.set_footer(text="Changes save to GitHub immediately.")
-        return e
+    e = discord.Embed(
+        title="🗺️ MapTap Settings",
+        description=(
+            f"**Channel:** {channel_str}\n"
+            f"**Admin roles:** {roles_str}\n\n"
+            f"**Schedule (UK):**\n{schedule_block}\n\n"
+            f"**Reactions:**\n{emoji_block}"
+        ),
+        color=0xF1C40F
+    )
+    e.set_footer(text="Changes save to GitHub immediately.")
+    return e
 
     async def save_and_refresh(self, interaction: discord.Interaction, message: str):
         current, current_sha = load_settings()
