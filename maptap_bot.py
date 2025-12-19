@@ -368,74 +368,75 @@ class EmojiModal(discord.ui.Modal, title="MapTap Reaction Emojis"):
         await self.view_ref.save_refresh(interaction, "MapTap: update emojis")
 
 class ScheduleModal(discord.ui.Modal, title="MapTap Schedule (UK)"):
-    daily_post = discord.ui.TextInput(label="Daily post time (HH:MM)", placeholder="00:00", required=True, max_length=5)
-    daily_scoreboard = discord.ui.TextInput(label="Daily scoreboard time (HH:MM)", placeholder="23:30", required=True, max_length=5)
-
-    weekly_time = discord.ui.TextInput(label="Weekly roundup time (HH:MM)", placeholder="23:45", required=True, max_length=5)
-    weekly_day = discord.ui.TextInput(label="Weekly roundup day (Mon..Sun)", placeholder="Sunday", required=True, max_length=9)
-
-    rivalry_time = discord.ui.TextInput(label="Rivalry time (HH:MM)", placeholder="12:00", required=True, max_length=5)
-    rivalry_day = discord.ui.TextInput(label="Rivalry day (Mon..Sun)", placeholder="Friday", required=True, max_length=9)
-
-    rivalry_gap = discord.ui.TextInput(label="Rivalry max gap (points)", placeholder="25", required=True, max_length=6)
+    daily_post = discord.ui.TextInput(
+        label="Daily post time (HH:MM)",
+        placeholder="00:00",
+        required=True,
+        max_length=5
+    )
+    daily_scoreboard = discord.ui.TextInput(
+        label="Daily scoreboard time (HH:MM)",
+        placeholder="23:30",
+        required=True,
+        max_length=5
+    )
+    weekly_time = discord.ui.TextInput(
+        label="Weekly roundup time (HH:MM)",
+        placeholder="23:45",
+        required=True,
+        max_length=5
+    )
+    rivalry_time = discord.ui.TextInput(
+        label="Rivalry time (HH:MM)",
+        placeholder="12:00",
+        required=True,
+        max_length=5
+    )
+    rivalry_gap = discord.ui.TextInput(
+        label="Rivalry max gap (points)",
+        placeholder="25",
+        required=True,
+        max_length=6
+    )
 
     def __init__(self, view_ref: "SettingsView"):
         super().__init__()
         self.view_ref = view_ref
-        sch = self.view_ref.settings.get("schedule", {})
+        sch = view_ref.settings["schedule"]
 
-        self.daily_post.default = str(sch.get("daily_post", "00:00"))
-        self.daily_scoreboard.default = str(sch.get("daily_scoreboard", "23:30"))
-
-        self.weekly_time.default = str(sch.get("weekly_time", "23:45"))
-        self.weekly_day.default = weekday_name(int(sch.get("weekly_day", 6)))
-
-        self.rivalry_time.default = str(sch.get("rivalry_time", "12:00"))
-        self.rivalry_day.default = weekday_name(int(sch.get("rivalry_day", 4)))
-
-        self.rivalry_gap.default = str(sch.get("rivalry_gap", 25))
-
-    def _day_to_num(self, s: str, fallback: int) -> int:
-        s = (s or "").strip().lower()
-        mapping = {name.lower(): num for name, num in WEEKDAYS}
-        return mapping.get(s, fallback)
+        self.daily_post.default = sch["daily_post"]
+        self.daily_scoreboard.default = sch["daily_scoreboard"]
+        self.weekly_time.default = sch["weekly_time"]
+        self.rivalry_time.default = sch["rivalry_time"]
+        self.rivalry_gap.default = str(sch["rivalry_gap"])
 
     async def on_submit(self, interaction: discord.Interaction):
-        dp = str(self.daily_post.value).strip()
-        ds = str(self.daily_scoreboard.value).strip()
-        wt = str(self.weekly_time.value).strip()
-        rt = str(self.rivalry_time.value).strip()
-
         try:
-            datetime.strptime(dp, "%H:%M")
-            datetime.strptime(ds, "%H:%M")
-            datetime.strptime(wt, "%H:%M")
-            datetime.strptime(rt, "%H:%M")
-        except Exception:
-            await interaction.response.send_message("❌ Invalid time. Use **HH:MM** (24h), e.g. **23:30**.", ephemeral=True)
-            return
-
-        weekly_day_num = self._day_to_num(str(self.weekly_day.value), fallback=int(self.view_ref.settings["schedule"].get("weekly_day", 6)))
-        rivalry_day_num = self._day_to_num(str(self.rivalry_day.value), fallback=int(self.view_ref.settings["schedule"].get("rivalry_day", 4)))
-
-        try:
-            gap = int(str(self.rivalry_gap.value).strip())
+            for v in (
+                self.daily_post.value,
+                self.daily_scoreboard.value,
+                self.weekly_time.value,
+                self.rivalry_time.value,
+            ):
+                datetime.strptime(v, "%H:%M")
+            gap = int(self.rivalry_gap.value)
             if gap < 1:
                 raise ValueError
         except Exception:
-            await interaction.response.send_message("❌ Rivalry gap must be a whole number **>= 1**.", ephemeral=True)
+            await interaction.response.send_message(
+                "❌ Invalid input. Times must be **HH:MM** and gap must be ≥ 1.",
+                ephemeral=True
+            )
             return
 
-        self.view_ref.settings.setdefault("schedule", {})
-        self.view_ref.settings["schedule"]["daily_post"] = dp
-        self.view_ref.settings["schedule"]["daily_scoreboard"] = ds
-        self.view_ref.settings["schedule"]["weekly_time"] = wt
-        self.view_ref.settings["schedule"]["weekly_day"] = weekly_day_num
-        self.view_ref.settings["schedule"]["rivalry_time"] = rt
-        self.view_ref.settings["schedule"]["rivalry_day"] = rivalry_day_num
-        self.view_ref.settings["schedule"]["rivalry_gap"] = gap
+        sch = self.view_ref.settings["schedule"]
+        sch["daily_post"] = self.daily_post.value
+        sch["daily_scoreboard"] = self.daily_scoreboard.value
+        sch["weekly_time"] = self.weekly_time.value
+        sch["rivalry_time"] = self.rivalry_time.value
+        sch["rivalry_gap"] = gap
 
-        await self.view_ref.save_refresh(interaction, "MapTap: update schedule")
+        await self.view_ref.save_refresh(interaction, "MapTap: update schedule times")
 
 class SettingsChannelSelect(discord.ui.ChannelSelect):
     def __init__(self):
