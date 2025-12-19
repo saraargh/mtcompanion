@@ -699,7 +699,7 @@ async def daily_scoreboard_task():
             f"MapTap: cleanup keep {CLEANUP_DAYS} days"
         )
 
-@tasks.loop(time=time(hour=23, minute=5, tzinfo=UK_TZ))
+@tasks.loop(time=time(hour=23, minute=45, tzinfo=UK_TZ))
 async def weekly_roundup_task():
     settings, _ = load_settings()
     if not settings.get("enabled", True):
