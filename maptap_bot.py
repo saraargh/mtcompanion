@@ -522,7 +522,7 @@ async def maptapsettings(interaction: discord.Interaction):
         return
 
     view = MapTapSettingsView(settings, sha)
-    await interaction.response.send_message(embed=view._embed(), view=view, ephemeral=True)
+    await interaction.response.send_message(embed=view._embed(), view=view, ephemeral=False)
 
 # =====================================================
 # SCORE INGESTION (message listener)
@@ -615,7 +615,7 @@ async def mymaptap(interaction: discord.Interaction):
         f"• Average score: **{avg}**\n"
         f"• Current streak: 🔥 **{cur} days**\n"
         f"• Best streak (all-time): 🏆 **{stats.get('best_streak', 0)} days**",
-        ephemeral=True
+        ephemeral=False
     )
 
 # =====================================================
