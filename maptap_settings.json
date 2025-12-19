@@ -1,7 +1,7 @@
 {
   "enabled": true,
   "channel_id": 1450502064252784851,
-  "daily_post_enabled": true,
+  "daily_post_enabled": false,
   "daily_scoreboard_enabled": true,
   "weekly_roundup_enabled": true,
   "admin_role_ids": [
@@ -16,5 +16,15 @@
     "too_high": "\u274c",
     "rescan_ingested": "<:maptapp:1451532874590191647>",
     "config_issue": "\u26a0\ufe0f"
+  },
+  "times": {
+    "daily_post": "00:00",
+    "daily_scoreboard": "23:30",
+    "weekly_roundup": "23:45"
+  },
+  "last_run": {
+    "daily_post": null,
+    "daily_scoreboard": null,
+    "weekly_roundup": null
   }
 }
