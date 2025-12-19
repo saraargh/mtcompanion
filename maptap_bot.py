@@ -473,116 +473,104 @@ class SettingsView(discord.ui.View):
         self.settings = settings
         self.sha = sha
 
-        # Row 0–1 selects
-        self.add_item(SettingsChannelSelect())
-        self.add_item(SettingsRoleSelect())
+        # --- ROW 1: Channel select ---
+        self.add_item(discord.ui.ChannelSelect(
+            placeholder="Select MapTap channel",
+            channel_types=[discord.ChannelType.text],
+            min_values=1,
+            max_values=1
+        ))
 
-        # Row 2: edit buttons
-        self.btn_emojis = discord.ui.Button(label="Edit Reaction Emojis", style=discord.ButtonStyle.primary, row=2)
-        self.btn_schedule = discord.ui.Button(label="Edit Schedule (UK)", style=discord.ButtonStyle.primary, row=2)
-        self.btn_emojis.callback = self._on_emojis
-        self.btn_schedule.callback = self._on_schedule
-        self.add_item(self.btn_emojis)
-        self.add_item(self.btn_schedule)
+        # --- ROW 2: Role select ---
+        self.add_item(discord.ui.RoleSelect(
+            placeholder="Select admin roles (optional)",
+            min_values=0,
+            max_values=10
+        ))
 
-        # Row 3: toggles
-        self.btn_bot = discord.ui.Button(label=self._lbl("Bot", self.settings.get("enabled", True)), style=discord.ButtonStyle.success, row=3)
-        self.btn_post = discord.ui.Button(label=self._lbl("Daily Post", self.settings.get("daily_post_enabled", True)), style=discord.ButtonStyle.success, row=3)
-        self.btn_board = discord.ui.Button(label=self._lbl("Daily Scoreboard", self.settings.get("daily_scoreboard_enabled", True)), style=discord.ButtonStyle.success, row=3)
-        self.btn_bot.callback = self._toggle_bot
-        self.btn_post.callback = self._toggle_post
-        self.btn_board.callback = self._toggle_board
-        self.add_item(self.btn_bot)
-        self.add_item(self.btn_post)
-        self.add_item(self.btn_board)
+        # --- ROW 3: Core edit buttons ---
+        self.add_item(discord.ui.Button(
+            label="Edit Reaction Emojis",
+            style=discord.ButtonStyle.primary,
+            custom_id="edit_emojis"
+        ))
+        self.add_item(discord.ui.Button(
+            label="Edit Schedule (Times)",
+            style=discord.ButtonStyle.primary,
+            custom_id="edit_schedule"
+        ))
 
-        # Row 4: weekly/rivalry/close
-        self.btn_weekly = discord.ui.Button(label=self._lbl("Weekly Roundup", self.settings.get("weekly_roundup_enabled", True)), style=discord.ButtonStyle.success, row=4)
-        self.btn_rivalry = discord.ui.Button(label=self._lbl("Rivalry", self.settings.get("rivalry_enabled", True)), style=discord.ButtonStyle.success, row=4)
-        self.btn_weekly.callback = self._toggle_weekly
-        self.btn_rivalry.callback = self._toggle_rivalry
-        self.add_item(self.btn_weekly)
-        self.add_item(self.btn_rivalry)
+        # --- ROW 4: Day pickers (buttons, not dropdowns) ---
+        self.add_item(discord.ui.Button(
+            label="Set Weekly Day",
+            style=discord.ButtonStyle.secondary,
+            custom_id="set_weekly_day"
+        ))
+        self.add_item(discord.ui.Button(
+            label="Set Rivalry Day",
+            style=discord.ButtonStyle.secondary,
+            custom_id="set_rivalry_day"
+        ))
 
-        self._refresh_button_styles()
+        # --- ROW 5: Toggles ---
+        self.add_item(discord.ui.Button(
+            label=self._toggle_label("Bot", settings["enabled"]),
+            style=discord.ButtonStyle.success,
+            custom_id="toggle_bot"
+        ))
+        self.add_item(discord.ui.Button(
+            label=self._toggle_label("Daily Post", settings["daily_post_enabled"]),
+            style=discord.ButtonStyle.success,
+            custom_id="toggle_daily_post"
+        ))
+        self.add_item(discord.ui.Button(
+            label=self._toggle_label("Daily Board", settings["daily_scoreboard_enabled"]),
+            style=discord.ButtonStyle.success,
+            custom_id="toggle_daily_board"
+        ))
+        self.add_item(discord.ui.Button(
+            label=self._toggle_label("Weekly", settings["weekly_roundup_enabled"]),
+            style=discord.ButtonStyle.success,
+            custom_id="toggle_weekly"
+        ))
+        self.add_item(discord.ui.Button(
+            label=self._toggle_label("Rivalry", settings["rivalry_enabled"]),
+            style=discord.ButtonStyle.success,
+            custom_id="toggle_rivalry"
+        ))
 
-    def _lbl(self, name: str, state: bool) -> str:
+    # ---------------- helpers ----------------
+
+    def _toggle_label(self, name: str, state: bool) -> str:
         return f"{name}: {'ON' if state else 'OFF'}"
 
-    def _refresh_button_styles(self):
-        # green when ON, grey when OFF
-        def style_for(on: bool) -> discord.ButtonStyle:
-            return discord.ButtonStyle.success if on else discord.ButtonStyle.secondary
-
-        self.btn_bot.style = style_for(bool(self.settings.get("enabled", True)))
-        self.btn_post.style = style_for(bool(self.settings.get("daily_post_enabled", True)))
-        self.btn_board.style = style_for(bool(self.settings.get("daily_scoreboard_enabled", True)))
-        self.btn_weekly.style = style_for(bool(self.settings.get("weekly_roundup_enabled", True)))
-        self.btn_rivalry.style = style_for(bool(self.settings.get("rivalry_enabled", True)))
-
     def embed(self) -> discord.Embed:
-        ch = f"<#{self.settings['channel_id']}>" if self.settings.get("channel_id") else "Not set"
-        roles = self.settings.get("admin_role_ids", [])
-        roles_str = ", ".join(f"<@&{rid}>" for rid in roles) if roles else "Admins only"
-
-        em = self.settings.get("emojis", {})
-        sch = self.settings.get("schedule", {})
+        sch = self.settings["schedule"]
+        em = self.settings["emojis"]
 
         desc = (
-            f"**Channel:** {ch}\n"
-            f"**Admin roles:** {roles_str}\n\n"
-            f"**Schedule (UK):**\n"
-            f"Daily post: **{sch.get('daily_post','00:00')}**\n"
-            f"Daily scoreboard: **{sch.get('daily_scoreboard','23:30')}**\n"
-            f"Weekly roundup: **{weekday_name(sch.get('weekly_day',6))} {sch.get('weekly_time','23:45')}**\n"
-            f"Rivalry: **{weekday_name(sch.get('rivalry_day',4))} {sch.get('rivalry_time','12:00')}** (≤ {sch.get('rivalry_gap',25)} pts)\n\n"
+            f"**Daily post:** {sch['daily_post']}\n"
+            f"**Daily scoreboard:** {sch['daily_scoreboard']}\n"
+            f"**Weekly roundup:** {weekday_name(sch['weekly_day'])} {sch['weekly_time']}\n"
+            f"**Rivalry:** {weekday_name(sch['rivalry_day'])} {sch['rivalry_time']} (≤ {sch['rivalry_gap']} pts)\n\n"
             f"**Reactions:**\n"
-            f"Recorded: {em.get('recorded','🌏')}\n"
-            f"Too high: {em.get('too_high','❌')}\n"
-            f"Rescan ingested: {em.get('rescan_ingested','🔁')}"
+            f"Recorded: {em['recorded']}\n"
+            f"Too high: {em['too_high']}\n"
+            f"Rescan: {em['rescan_ingested']}"
         )
-        e = discord.Embed(title="🗺️ MapTap Settings", description=desc, color=0xF1C40F)
-        e.set_footer(text="Changes save to GitHub immediately.")
-        return e
+
+        return discord.Embed(
+            title="🗺️ MapTap Settings",
+            description=desc,
+            color=0xF1C40F
+        )
 
     async def save_refresh(self, interaction: discord.Interaction, msg: str):
-        current, current_sha = load_settings()
+        current, sha = load_settings()
         current.update(self.settings)
-        save_settings(current, current_sha, msg)
+        save_settings(current, sha, msg)
         self.settings = current
-        self._refresh_button_styles()
         await interaction.response.edit_message(embed=self.embed(), view=self)
-
-    async def _on_emojis(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(EmojiModal(self))
-
-    async def _on_schedule(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(ScheduleModal(self))
-
-    async def _toggle_bot(self, interaction: discord.Interaction):
-        self.settings["enabled"] = not bool(self.settings.get("enabled", True))
-        self.btn_bot.label = self._lbl("Bot", self.settings["enabled"])
-        await self.save_refresh(interaction, "MapTap: toggle bot")
-
-    async def _toggle_post(self, interaction: discord.Interaction):
-        self.settings["daily_post_enabled"] = not bool(self.settings.get("daily_post_enabled", True))
-        self.btn_post.label = self._lbl("Daily Post", self.settings["daily_post_enabled"])
-        await self.save_refresh(interaction, "MapTap: toggle daily post")
-
-    async def _toggle_board(self, interaction: discord.Interaction):
-        self.settings["daily_scoreboard_enabled"] = not bool(self.settings.get("daily_scoreboard_enabled", True))
-        self.btn_board.label = self._lbl("Daily Scoreboard", self.settings["daily_scoreboard_enabled"])
-        await self.save_refresh(interaction, "MapTap: toggle daily scoreboard")
-
-    async def _toggle_weekly(self, interaction: discord.Interaction):
-        self.settings["weekly_roundup_enabled"] = not bool(self.settings.get("weekly_roundup_enabled", True))
-        self.btn_weekly.label = self._lbl("Weekly Roundup", self.settings["weekly_roundup_enabled"])
-        await self.save_refresh(interaction, "MapTap: toggle weekly")
-
-    async def _toggle_rivalry(self, interaction: discord.Interaction):
-        self.settings["rivalry_enabled"] = not bool(self.settings.get("rivalry_enabled", True))
-        self.btn_rivalry.label = self._lbl("Rivalry", self.settings["rivalry_enabled"])
-        await self.save_refresh(interaction, "MapTap: toggle rivalry")
 
 
 # =========================
