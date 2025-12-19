@@ -134,6 +134,35 @@ def github_save_json(path: str, data: Any, sha: Optional[str], message: str) -> 
     new_sha = r.json().get("content", {}).get("sha")
     return new_sha or sha or ""
 
+### RANK HELPER###
+def calculate_all_time_rank(users: Dict[str, Any], user_id: str) -> Tuple[int, int]:
+    """
+    Returns (rank, total_players)
+    Rank is 1-based.
+    """
+    leaderboard = []
+
+    for uid, data in users.items():
+        try:
+            leaderboard.append((
+                uid,
+                int(data.get("total_points", 0)),
+                int(data.get("days_played", 0))
+            ))
+        except Exception:
+            continue
+
+    # Sort by total points desc, then days played desc
+    leaderboard.sort(key=lambda x: (x[1], x[2]), reverse=True)
+
+    total_players = len(leaderboard)
+
+    for idx, (uid, _, _) in enumerate(leaderboard, start=1):
+        if uid == user_id:
+            return idx, total_players
+
+    return total_players, total_players
+
 # =====================================================
 # SETTINGS HELPERS
 # =====================================================
@@ -615,9 +644,11 @@ async def mymaptap(
 
     cur = calculate_current_streak(scores, user_id)
     avg = round(int(stats["total_points"]) / int(stats["days_played"]))
+    rank, total_players = calculate_all_time_rank(users, user_id)
 
     await interaction.response.send_message(
         f"🗺️ **MapTap Stats — {target.display_name}**\n\n"
+        f"• Rank (all-time): 🏅 **#{rank} of {total_players}**\n"
         f"• Total points (all-time): **{stats['total_points']}**\n"
         f"• Days played (all-time): **{stats['days_played']}**\n"
         f"• Average score: **{avg}**\n"
