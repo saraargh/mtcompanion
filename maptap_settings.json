@@ -4,6 +4,7 @@
   "daily_post_enabled": true,
   "daily_scoreboard_enabled": true,
   "weekly_roundup_enabled": true,
+  "rivalry_enabled": false,
   "admin_role_ids": [
     1413545658006110401,
     1404098545006546954,
@@ -17,14 +18,24 @@
     "rescan_ingested": "<:maptapp:1451532874590191647>",
     "config_issue": "\u26a0\ufe0f"
   },
-  "times": {
+  "schedule": {
     "daily_post": "00:00",
     "daily_scoreboard": "23:30",
-    "weekly_roundup": "23:45"
+    "weekly_day": 6,
+    "weekly_time": "23:45",
+    "rivalry_day": 4,
+    "rivalry_time": "19:30",
+    "rivalry_gap": 25
   },
   "last_run": {
     "daily_post": null,
     "daily_scoreboard": null,
-    "weekly_roundup": null
+    "weekly_roundup": null,
+    "rivalry": null
+  },
+  "times": {
+    "daily_post": "00:00",
+    "daily_scoreboard": "23:30",
+    "weekly_roundup": "23:45"
   }
 }
