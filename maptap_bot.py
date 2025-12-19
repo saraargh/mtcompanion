@@ -537,7 +537,7 @@ class MapTapSettingsView(discord.ui.View):
         await interaction.response.edit_message(content="✅ Closed.", embed=None, view=None)
 
 # =====================================================
-# SLASH COMMAND: /maptapsettings
+# SLASH COMMAND: /mymaptap
 # =====================================================
 @client.tree.command(name="mymaptap", description="View MapTap stats")
 @app_commands.describe(user="View stats for another user")
@@ -572,6 +572,35 @@ async def mymaptap(
         f"• Current streak: 🔥 **{cur} days**\n"
         f"• Best streak (all-time): 🏆 **{stats.get('best_streak', 0)} days**",
         ephemeral=False
+    )
+    
+######maptapsettings####
+# =====================================================
+# SLASH COMMAND: /maptapsettings
+# =====================================================
+@client.tree.command(name="maptapsettings", description="Configure MapTap bot settings")
+async def maptapsettings(interaction: discord.Interaction):
+    settings, sha = load_settings()
+
+    if not isinstance(interaction.user, discord.Member):
+        await interaction.response.send_message(
+            "❌ Use this in a server, not DMs.",
+            ephemeral=True
+        )
+        return
+
+    if not has_admin_access(interaction.user, settings):
+        await interaction.response.send_message(
+            "❌ You don’t have permission to manage MapTap settings.",
+            ephemeral=True
+        )
+        return
+
+    view = MapTapSettingsView(settings, sha)
+    await interaction.response.send_message(
+        embed=view._embed(),
+        view=view,
+        ephemeral=False  # public panel (matches what you wanted earlier)
     )
 # =====================================================
 # SCORE INGESTION (message listener)
