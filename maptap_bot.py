@@ -639,33 +639,7 @@ async def on_message(message: discord.Message):
 
     await react_safe(message, em.get("recorded", "🌏"), "✅")
 
-# =====================================================
-# SLASH COMMAND: /mymaptap
-# =====================================================
-@client.tree.command(name="mymaptap", description="View your MapTap stats")
-async def mymaptap(interaction: discord.Interaction):
-    users, _ = github_load_json(USERS_PATH, {})
-    scores, _ = github_load_json(SCORES_PATH, {})
 
-    user_id = str(interaction.user.id)
-    stats = users.get(user_id)
-
-    if not stats or int(stats.get("days_played", 0)) <= 0:
-        await interaction.response.send_message("You haven’t recorded any MapTap scores yet 🗺️", ephemeral=True)
-        return
-
-    cur = calculate_current_streak(scores, user_id)
-    avg = round(int(stats["total_points"]) / int(stats["days_played"]))
-
-    await interaction.response.send_message(
-        "🗺️ **Your MapTap Stats**\n\n"
-        f"• Total points (all-time): **{stats['total_points']}**\n"
-        f"• Days played (all-time): **{stats['days_played']}**\n"
-        f"• Average score: **{avg}**\n"
-        f"• Current streak: 🔥 **{cur} days**\n"
-        f"• Best streak (all-time): 🏆 **{stats.get('best_streak', 0)} days**",
-        ephemeral=True
-    )
 
 # =====================================================
 # SLASH COMMAND: /rescan (admin-only) — NO DUPLICATE REACTION
