@@ -504,6 +504,140 @@ async def mymaptap(interaction: discord.Interaction):
         f"• Best streak (all-time): 🏆 **{stats.get('best_streak', 0)} days**",
         ephemeral=True
     )
+    
+####RESCAN#####
+@client.tree.command(
+    name="rescan",
+    description="Re-scan recent MapTap messages for missed scores (admin only)"
+)
+@app_commands.describe(
+    messages="How many recent messages to scan (max 50)"
+)
+async def rescan(
+    interaction: discord.Interaction,
+    messages: int = 10
+):
+    settings, _ = load_settings()
+
+    # Must be in a guild
+    if not isinstance(interaction.user, discord.Member):
+        await interaction.response.send_message(
+            "❌ This command can only be used in a server.",
+            ephemeral=True
+        )
+        return
+
+    # Permission check (admins / allowed roles)
+    if not has_admin_access(interaction.user, settings):
+        await interaction.response.send_message(
+            "❌ You don’t have permission to run this.",
+            ephemeral=True
+        )
+        return
+
+    ch = get_configured_channel(settings)
+    if not ch:
+        await interaction.response.send_message(
+            "❌ MapTap channel is not configured.",
+            ephemeral=True
+        )
+        return
+
+    # Clamp message count
+    messages = max(1, min(messages, 50))
+
+    await interaction.response.send_message(
+        f"🔍 Scanning the last **{messages}** messages…",
+        ephemeral=True
+    )
+
+    scanned = 0
+    ingested = 0
+    skipped = 0
+
+    scores, scores_sha = github_load_json(SCORES_PATH, {})
+    users, users_sha = github_load_json(USERS_PATH, {})
+
+    async for msg in ch.history(limit=messages):
+        if msg.author.bot or not msg.content:
+            continue
+
+        match = SCORE_REGEX.search(msg.content)
+        if not match:
+            continue
+
+        scanned += 1
+        score = int(match.group(1))
+
+        if score > MAX_SCORE:
+            skipped += 1
+            try:
+                await msg.add_reaction("❌")
+            except Exception:
+                pass
+            continue
+
+        msg_time_uk = msg.created_at.replace(
+            tzinfo=ZoneInfo("UTC")
+        ).astimezone(UK_TZ)
+
+        date_key = today_key(msg_time_uk)
+        uid = str(msg.author.id)
+
+        scores.setdefault(date_key, {})
+        day_bucket = scores[date_key]
+
+        # Skip if already recorded for that day
+        if uid in day_bucket:
+            skipped += 1
+            try:
+                await msg.add_reaction("⏭️")
+            except Exception:
+                pass
+            continue
+
+        # Initialise user stats if missing
+        user = users.setdefault(uid, {
+            "total_points": 0,
+            "days_played": 0,
+            "best_streak": 0
+        })
+
+        user["days_played"] += 1
+        user["total_points"] += score
+
+        day_bucket[uid] = {
+            "score": score,
+            "updated_at": msg_time_uk.isoformat()
+        }
+
+        ingested += 1
+        try:
+            await msg.add_reaction("🔁")
+        except Exception:
+            pass
+
+    # Save once (important)
+    github_save_json(
+        SCORES_PATH,
+        scores,
+        scores_sha,
+        f"MapTap: rescan last {messages} messages"
+    )
+    github_save_json(
+        USERS_PATH,
+        users,
+        users_sha,
+        f"MapTap: rescan user stats"
+    )
+
+    await interaction.followup.send(
+        "✅ **Rescan complete**\n"
+        f"• Matches found: **{scanned}**\n"
+        f"• Newly ingested: **{ingested}**\n"
+        f"• Skipped: **{skipped}**",
+        ephemeral=True
+    )
 
 # =====================================================
 # TASKS
