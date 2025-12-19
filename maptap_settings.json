@@ -1,10 +1,6 @@
 {
-  "enabled": true,
+  "enabled": false,
   "channel_id": 1450502064252784851,
-  "daily_post_enabled": true,
-  "daily_scoreboard_enabled": true,
-  "weekly_roundup_enabled": true,
-  "rivalry_enabled": true,
   "admin_role_ids": [
     1413545658006110401,
     1404098545006546954,
@@ -12,6 +8,10 @@
     1404105470204969000,
     1404104881098195015
   ],
+  "daily_post_enabled": true,
+  "daily_scoreboard_enabled": true,
+  "weekly_roundup_enabled": true,
+  "rivalry_enabled": true,
   "emojis": {
     "recorded": "<:maptapp:1451532874590191647>",
     "too_high": "\u274c",
