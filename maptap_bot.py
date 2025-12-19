@@ -342,7 +342,7 @@ class MapTapSettingsView(discord.ui.View):
                 f"**Admin roles:** {roles_str}\n\n"
                 f"**Daily post (00:00):** {'✅' if self.settings.get('daily_post_enabled') else '❌'}\n"
                 f"**Daily scoreboard (23:30):** {'✅' if self.settings.get('daily_scoreboard_enabled') else '❌'}\n"
-                f"**Weekly roundup (Sun 23:05):** {'✅' if self.settings.get('weekly_roundup_enabled') else '❌'}\n"
+                f"**Weekly roundup (Sun 23:45):** {'✅' if self.settings.get('weekly_roundup_enabled') else '❌'}\n"
                 f"**Master enabled:** {'✅' if self.settings.get('enabled') else '❌'}\n\n"
                 f"**Reactions:**\n{emoji_block}"
             ),
