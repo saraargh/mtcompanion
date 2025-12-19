@@ -593,23 +593,31 @@ async def on_message(message: discord.Message):
 # =====================================================
 # SLASH COMMAND: /mymaptap
 # =====================================================
-@client.tree.command(name="mymaptap", description="View your MapTap stats")
-async def mymaptap(interaction: discord.Interaction):
+@client.tree.command(name="mymaptap", description="View MapTap stats")
+@app_commands.describe(user="View stats for another user")
+async def mymaptap(
+    interaction: discord.Interaction,
+    user: Optional[discord.Member] = None
+):
     users, _ = github_load_json(USERS_PATH, {})
     scores, _ = github_load_json(SCORES_PATH, {})
 
-    user_id = str(interaction.user.id)
+    target = user or interaction.user
+    user_id = str(target.id)
     stats = users.get(user_id)
 
     if not stats or int(stats.get("days_played", 0)) <= 0:
-        await interaction.response.send_message("You haven’t recorded any MapTap scores yet 🗺️", ephemeral=True)
+        await interaction.response.send_message(
+            f"{target.display_name} hasn’t recorded any MapTap scores yet 🗺️",
+            ephemeral=False
+        )
         return
 
     cur = calculate_current_streak(scores, user_id)
     avg = round(int(stats["total_points"]) / int(stats["days_played"]))
 
     await interaction.response.send_message(
-        "🗺️ **Your MapTap Stats**\n\n"
+        f"🗺️ **MapTap Stats — {target.display_name}**\n\n"
         f"• Total points (all-time): **{stats['total_points']}**\n"
         f"• Days played (all-time): **{stats['days_played']}**\n"
         f"• Average score: **{avg}**\n"
