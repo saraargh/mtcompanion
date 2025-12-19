@@ -4,7 +4,7 @@
   "daily_post_enabled": true,
   "daily_scoreboard_enabled": true,
   "weekly_roundup_enabled": true,
-  "rivalry_enabled": false,
+  "rivalry_enabled": true,
   "admin_role_ids": [
     1413545658006110401,
     1404098545006546954,
