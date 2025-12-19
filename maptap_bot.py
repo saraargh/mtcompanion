@@ -1,6 +1,6 @@
 # =========================
-# MapTap Companion Bot
-# FULL FILE (PART 1/2)
+# MapTap Companion Bot (FULL FILE) — PART 1/2
+# Paste PART 2 directly underneath
 # =========================
 
 import os
@@ -25,6 +25,7 @@ UK_TZ = ZoneInfo("Europe/London")
 UTC = ZoneInfo("UTC")
 
 TOKEN = os.getenv("TOKEN")
+
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_REPO = os.getenv("GITHUB_REPO")  # e.g. "saraargh/the-pilot"
 
@@ -36,11 +37,18 @@ MAPTAP_URL = os.getenv("MAPTAP_URL", "https://www.maptap.gg")
 CLEANUP_DAYS = int(os.getenv("MAPTAP_CLEANUP_DAYS", "69"))
 MAX_SCORE = int(os.getenv("MAPTAP_MAX_SCORE", "1000"))
 
-# Parse "Final score: 606"
+# Parse "Final score: 606" (case-insensitive)
 SCORE_REGEX = re.compile(r"Final\s*score:\s*(\d+)", re.IGNORECASE)
 
-WEEKDAYS = [("Monday", 0), ("Tuesday", 1), ("Wednesday", 2), ("Thursday", 3),
-            ("Friday", 4), ("Saturday", 5), ("Sunday", 6)]
+WEEKDAYS = [
+    ("Monday", 0),
+    ("Tuesday", 1),
+    ("Wednesday", 2),
+    ("Thursday", 3),
+    ("Friday", 4),
+    ("Saturday", 5),
+    ("Sunday", 6),
+]
 
 def weekday_name(n: int) -> str:
     try:
@@ -51,27 +59,6 @@ def weekday_name(n: int) -> str:
         if num == n:
             return name
     return "Sunday"
-
-def parse_hhmm(hhmm: str) -> Tuple[int, int]:
-    dt = datetime.strptime(hhmm, "%H:%M")
-    return dt.hour, dt.minute
-
-def today_key(dt: Optional[datetime] = None) -> str:
-    if dt is None:
-        dt = datetime.now(UK_TZ)
-    return dt.date().isoformat()
-
-def monday_key(dt: Optional[datetime] = None) -> str:
-    if dt is None:
-        dt = datetime.now(UK_TZ)
-    mon = dt.date() - timedelta(days=dt.weekday())
-    return mon.isoformat()
-
-def pretty_day(date_key: str) -> str:
-    return datetime.strptime(date_key, "%Y-%m-%d").strftime("%A %d %B")
-
-def monday_of_week(d: datetime) -> datetime.date:
-    return d.date() - timedelta(days=d.weekday())
 
 # =====================================================
 # DEFAULT SETTINGS (GitHub-backed)
@@ -92,18 +79,19 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "rescan_ingested": "🔁",
     },
 
-    # Schedule values are strings/ints saved in GitHub
+    # schedule (UK time)
     "schedule": {
         "daily_post": "00:00",
         "daily_scoreboard": "23:30",
-        "weekly_day": 6,
+
+        "weekly_day": 6,     # 0-6
         "weekly_time": "23:45",
-        "rivalry_day": 4,
+
+        "rivalry_day": 4,    # 0-6
         "rivalry_time": "12:00",
-        "rivalry_gap": 25,
+        "rivalry_gap": 25,   # max points gap between top2 totals to trigger rivalry
     },
 
-    # last_run: daily keys store YYYY-MM-DD, weekly/rivalry store Monday YYYY-MM-DD (week key)
     "last_run": {
         "daily_post": None,
         "daily_scoreboard": None,
@@ -131,7 +119,7 @@ def run_web():
     app.run(host="0.0.0.0", port=port)
 
 # =====================================================
-# GITHUB CONTENTS API JSON HELPERS
+# GITHUB STORAGE HELPERS
 # =====================================================
 def _gh_url(path: str) -> str:
     return f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
@@ -148,9 +136,11 @@ def gh_load_json(path: str, default: Any) -> Tuple[Any, Optional[str]]:
         return default, payload.get("sha")
     return json.loads(content), payload.get("sha")
 
-def gh_save_json(path: str, data: Any, sha: Optional[str], message: str) -> str:
-    encoded = base64.b64encode(json.dumps(data, indent=2).encode("utf-8")).decode("utf-8")
-    body: Dict[str, Any] = {"message": message, "content": encoded}
+def gh_save_json(path: str, data: Any, sha: Optional[str], msg: str) -> str:
+    body: Dict[str, Any] = {
+        "message": msg,
+        "content": base64.b64encode(json.dumps(data, indent=2).encode("utf-8")).decode("utf-8"),
+    }
     if sha:
         body["sha"] = sha
     r = requests.put(_gh_url(path), headers=HEADERS, json=body, timeout=20)
@@ -166,17 +156,17 @@ def _merge(default: Dict[str, Any], incoming: Any) -> Dict[str, Any]:
         out.update(incoming)
     return out
 
-def _normalize_hhmm(value: Any, fallback: str) -> str:
-    s = str(value).strip()
+def _hhmm(v: Any, fallback: str) -> str:
+    s = str(v).strip()
     try:
         datetime.strptime(s, "%H:%M")
         return s
     except Exception:
         return fallback
 
-def _normalize_int(value: Any, fallback: int, lo: int, hi: int) -> int:
+def _int(v: Any, fallback: int, lo: int, hi: int) -> int:
     try:
-        i = int(value)
+        i = int(v)
         if lo <= i <= hi:
             return i
     except Exception:
@@ -185,47 +175,60 @@ def _normalize_int(value: Any, fallback: int, lo: int, hi: int) -> int:
 
 def load_settings() -> Tuple[Dict[str, Any], Optional[str]]:
     raw, sha = gh_load_json(SETTINGS_PATH, DEFAULT_SETTINGS.copy())
+
     s = DEFAULT_SETTINGS.copy()
     if isinstance(raw, dict):
         s.update(raw)
 
-    # channel_id
+    # normalize channel_id
     try:
         s["channel_id"] = int(s["channel_id"]) if s.get("channel_id") is not None else None
     except Exception:
         s["channel_id"] = None
 
-    # admin roles
+    # normalize roles list
     s["admin_role_ids"] = [int(x) for x in s.get("admin_role_ids", []) if str(x).isdigit()]
 
-    # toggles
-    for k in ["enabled", "daily_post_enabled", "daily_scoreboard_enabled", "weekly_roundup_enabled", "rivalry_enabled"]:
-        s[k] = bool(s.get(k, DEFAULT_SETTINGS[k]))
-
-    # emojis + schedule + last_run
+    # merge emojis + schedule + last_run
     s["emojis"] = _merge(DEFAULT_SETTINGS["emojis"], s.get("emojis"))
-    sch_in = _merge(DEFAULT_SETTINGS["schedule"], s.get("schedule"))
+    sch = _merge(DEFAULT_SETTINGS["schedule"], s.get("schedule"))
     s["schedule"] = {
-        "daily_post": _normalize_hhmm(sch_in.get("daily_post"), DEFAULT_SETTINGS["schedule"]["daily_post"]),
-        "daily_scoreboard": _normalize_hhmm(sch_in.get("daily_scoreboard"), DEFAULT_SETTINGS["schedule"]["daily_scoreboard"]),
-        "weekly_day": _normalize_int(sch_in.get("weekly_day"), DEFAULT_SETTINGS["schedule"]["weekly_day"], 0, 6),
-        "weekly_time": _normalize_hhmm(sch_in.get("weekly_time"), DEFAULT_SETTINGS["schedule"]["weekly_time"]),
-        "rivalry_day": _normalize_int(sch_in.get("rivalry_day"), DEFAULT_SETTINGS["schedule"]["rivalry_day"], 0, 6),
-        "rivalry_time": _normalize_hhmm(sch_in.get("rivalry_time"), DEFAULT_SETTINGS["schedule"]["rivalry_time"]),
-        "rivalry_gap": _normalize_int(sch_in.get("rivalry_gap"), DEFAULT_SETTINGS["schedule"]["rivalry_gap"], 1, 100000),
+        "daily_post": _hhmm(sch.get("daily_post"), DEFAULT_SETTINGS["schedule"]["daily_post"]),
+        "daily_scoreboard": _hhmm(sch.get("daily_scoreboard"), DEFAULT_SETTINGS["schedule"]["daily_scoreboard"]),
+        "weekly_day": _int(sch.get("weekly_day"), DEFAULT_SETTINGS["schedule"]["weekly_day"], 0, 6),
+        "weekly_time": _hhmm(sch.get("weekly_time"), DEFAULT_SETTINGS["schedule"]["weekly_time"]),
+        "rivalry_day": _int(sch.get("rivalry_day"), DEFAULT_SETTINGS["schedule"]["rivalry_day"], 0, 6),
+        "rivalry_time": _hhmm(sch.get("rivalry_time"), DEFAULT_SETTINGS["schedule"]["rivalry_time"]),
+        "rivalry_gap": _int(sch.get("rivalry_gap"), DEFAULT_SETTINGS["schedule"]["rivalry_gap"], 1, 100000),
     }
+
     s["last_run"] = _merge(DEFAULT_SETTINGS["last_run"], s.get("last_run"))
     if not isinstance(s["last_run"], dict):
         s["last_run"] = DEFAULT_SETTINGS["last_run"].copy()
 
+    # normalize toggles to bool
+    for k in ["enabled", "daily_post_enabled", "daily_scoreboard_enabled", "weekly_roundup_enabled", "rivalry_enabled"]:
+        s[k] = bool(s.get(k, DEFAULT_SETTINGS[k]))
+
     return s, sha
 
-def save_settings(settings: Dict[str, Any], sha: Optional[str], message: str) -> Optional[str]:
-    return gh_save_json(SETTINGS_PATH, settings, sha, message)
+def save_settings(settings: Dict[str, Any], sha: Optional[str], msg: str) -> Optional[str]:
+    return gh_save_json(SETTINGS_PATH, settings, sha, msg)
 
 # =====================================================
-# STATS HELPERS
+# GENERAL HELPERS
 # =====================================================
+def today_key(dt: Optional[datetime] = None) -> str:
+    if dt is None:
+        dt = datetime.now(UK_TZ)
+    return dt.date().isoformat()
+
+def pretty_day(date_key: str) -> str:
+    return datetime.strptime(date_key, "%Y-%m-%d").strftime("%A %d %B")
+
+def monday_of_week(d: datetime) -> datetime.date:
+    return d.date() - timedelta(days=d.weekday())
+
 def cleanup_old_scores(scores: Dict[str, Any], keep_days: int) -> Dict[str, Any]:
     cutoff = datetime.now(UK_TZ).date() - timedelta(days=keep_days)
     out: Dict[str, Any] = {}
@@ -248,6 +251,7 @@ def calculate_current_streak(scores: Dict[str, Any], uid: str) -> int:
                 pass
     if not played:
         return 0
+
     day = datetime.now(UK_TZ).date()
     streak = 0
     while day in played:
@@ -271,7 +275,7 @@ def calculate_rank(users: Dict[str, Any], uid: str) -> Tuple[int, int]:
 
 async def react_safe(msg: discord.Message, emoji: str, fallback: str):
     try:
-        await msg.add_reaction(emoji)
+        await msg.add_reaction(str(emoji))
     except Exception:
         try:
             await msg.add_reaction(fallback)
@@ -296,7 +300,7 @@ def build_daily_scoreboard_text(date_key: str, rows: List[Tuple[str, int]]) -> s
     lines = [f"{i}. <@{uid}> — **{score}**" for i, (uid, score) in enumerate(rows, start=1)]
     return header + "\n".join(lines) + f"\n\n✈️ Players today: **{len(rows)}**"
 
-def build_weekly_roundup_text(mon: datetime.date, sun: datetime.date, rows: List[Tuple[str, int, int]]) -> str:
+def build_weekly_roundup_text(mon, sun, rows: List[Tuple[str, int, int]]) -> str:
     header = (
         "🗺️ **MapTap — Weekly Round-Up**\n"
         f"*Mon {mon.strftime('%d %b')} → Sun {sun.strftime('%d %b')}*\n\n"
@@ -326,9 +330,6 @@ class MapTapBot(discord.Client):
 
 client = MapTapBot()
 
-# =====================================================
-# PERMISSIONS / CHANNEL
-# =====================================================
 def get_channel(settings: Dict[str, Any]) -> Optional[discord.TextChannel]:
     cid = settings.get("channel_id")
     if not cid:
@@ -343,32 +344,13 @@ def has_admin(member: discord.Member, settings: Dict[str, Any]) -> bool:
         return False
     return any(r.id in allowed for r in member.roles)
 
-# =========================
-# FULL FILE (PART 2/2)
-# =========================
-
 # =====================================================
-# SETTINGS UI
+# SETTINGS UI (View + Modals) — FIXED ROW LAYOUT
 # =====================================================
 class EmojiModal(discord.ui.Modal, title="MapTap Reaction Emojis"):
-    recorded = discord.ui.TextInput(
-        label="Score recorded emoji",
-        placeholder="e.g. ✅ or <:maptapp:1451532874590191647>",
-        required=True,
-        max_length=64
-    )
-    too_high = discord.ui.TextInput(
-        label="Too high score emoji",
-        placeholder="e.g. ❌",
-        required=True,
-        max_length=64
-    )
-    rescan_ingested = discord.ui.TextInput(
-        label="Rescan ingested emoji",
-        placeholder="e.g. 🔁",
-        required=True,
-        max_length=64
-    )
+    recorded = discord.ui.TextInput(label="Recorded emoji", placeholder="🌏 or <:maptapp:...>", required=True, max_length=64)
+    too_high = discord.ui.TextInput(label="Too high emoji", placeholder="❌", required=True, max_length=64)
+    rescan_ingested = discord.ui.TextInput(label="Rescan ingested emoji", placeholder="🔁", required=True, max_length=64)
 
     def __init__(self, view_ref: "SettingsView"):
         super().__init__()
@@ -388,19 +370,35 @@ class EmojiModal(discord.ui.Modal, title="MapTap Reaction Emojis"):
 class ScheduleModal(discord.ui.Modal, title="MapTap Schedule (UK)"):
     daily_post = discord.ui.TextInput(label="Daily post time (HH:MM)", placeholder="00:00", required=True, max_length=5)
     daily_scoreboard = discord.ui.TextInput(label="Daily scoreboard time (HH:MM)", placeholder="23:30", required=True, max_length=5)
+
     weekly_time = discord.ui.TextInput(label="Weekly roundup time (HH:MM)", placeholder="23:45", required=True, max_length=5)
+    weekly_day = discord.ui.TextInput(label="Weekly roundup day (Mon..Sun)", placeholder="Sunday", required=True, max_length=9)
+
     rivalry_time = discord.ui.TextInput(label="Rivalry time (HH:MM)", placeholder="12:00", required=True, max_length=5)
+    rivalry_day = discord.ui.TextInput(label="Rivalry day (Mon..Sun)", placeholder="Friday", required=True, max_length=9)
+
     rivalry_gap = discord.ui.TextInput(label="Rivalry max gap (points)", placeholder="25", required=True, max_length=6)
 
     def __init__(self, view_ref: "SettingsView"):
         super().__init__()
         self.view_ref = view_ref
         sch = self.view_ref.settings.get("schedule", {})
+
         self.daily_post.default = str(sch.get("daily_post", "00:00"))
         self.daily_scoreboard.default = str(sch.get("daily_scoreboard", "23:30"))
+
         self.weekly_time.default = str(sch.get("weekly_time", "23:45"))
+        self.weekly_day.default = weekday_name(int(sch.get("weekly_day", 6)))
+
         self.rivalry_time.default = str(sch.get("rivalry_time", "12:00"))
+        self.rivalry_day.default = weekday_name(int(sch.get("rivalry_day", 4)))
+
         self.rivalry_gap.default = str(sch.get("rivalry_gap", 25))
+
+    def _day_to_num(self, s: str, fallback: int) -> int:
+        s = (s or "").strip().lower()
+        mapping = {name.lower(): num for name, num in WEEKDAYS}
+        return mapping.get(s, fallback)
 
     async def on_submit(self, interaction: discord.Interaction):
         dp = str(self.daily_post.value).strip()
@@ -414,52 +412,59 @@ class ScheduleModal(discord.ui.Modal, title="MapTap Schedule (UK)"):
             datetime.strptime(wt, "%H:%M")
             datetime.strptime(rt, "%H:%M")
         except Exception:
-            await interaction.response.send_message("❌ Invalid time. Use **HH:MM** (24h). Example: **23:30**", ephemeral=True)
+            await interaction.response.send_message("❌ Invalid time. Use **HH:MM** (24h), e.g. **23:30**.", ephemeral=True)
             return
+
+        weekly_day_num = self._day_to_num(str(self.weekly_day.value), fallback=int(self.view_ref.settings["schedule"].get("weekly_day", 6)))
+        rivalry_day_num = self._day_to_num(str(self.rivalry_day.value), fallback=int(self.view_ref.settings["schedule"].get("rivalry_day", 4)))
 
         try:
             gap = int(str(self.rivalry_gap.value).strip())
             if gap < 1:
                 raise ValueError
         except Exception:
-            await interaction.response.send_message("❌ Rivalry gap must be a whole number ≥ 1.", ephemeral=True)
+            await interaction.response.send_message("❌ Rivalry gap must be a whole number **>= 1**.", ephemeral=True)
             return
 
         self.view_ref.settings.setdefault("schedule", {})
         self.view_ref.settings["schedule"]["daily_post"] = dp
         self.view_ref.settings["schedule"]["daily_scoreboard"] = ds
         self.view_ref.settings["schedule"]["weekly_time"] = wt
+        self.view_ref.settings["schedule"]["weekly_day"] = weekly_day_num
         self.view_ref.settings["schedule"]["rivalry_time"] = rt
+        self.view_ref.settings["schedule"]["rivalry_day"] = rivalry_day_num
         self.view_ref.settings["schedule"]["rivalry_gap"] = gap
 
         await self.view_ref.save_refresh(interaction, "MapTap: update schedule")
 
-class WeekdaySelect(discord.ui.Select):
-    def __init__(self, label: str, current: int):
-        options = []
-        for name, num in WEEKDAYS:
-            options.append(discord.SelectOption(label=name, value=str(num), default=(int(current) == num)))
-        super().__init__(placeholder=label, options=options, min_values=1, max_values=1)
-
-class WeeklyDaySelect(WeekdaySelect):
-    def __init__(self, current: int):
-        super().__init__("Weekly roundup day", current)
-
-    async def callback(self, interaction: discord.Interaction):
-        view: "SettingsView" = self.view  # type: ignore
-        view.settings.setdefault("schedule", {})
-        view.settings["schedule"]["weekly_day"] = int(self.values[0])
-        await view.save_refresh(interaction, "MapTap: set weekly day")
-
-class RivalryDaySelect(WeekdaySelect):
-    def __init__(self, current: int):
-        super().__init__("Rivalry day", current)
+class SettingsChannelSelect(discord.ui.ChannelSelect):
+    def __init__(self):
+        super().__init__(
+            placeholder="Select the MapTap channel",
+            channel_types=[discord.ChannelType.text],
+            min_values=1,
+            max_values=1,
+            row=0
+        )
 
     async def callback(self, interaction: discord.Interaction):
         view: "SettingsView" = self.view  # type: ignore
-        view.settings.setdefault("schedule", {})
-        view.settings["schedule"]["rivalry_day"] = int(self.values[0])
-        await view.save_refresh(interaction, "MapTap: set rivalry day")
+        view.settings["channel_id"] = self.values[0].id
+        await view.save_refresh(interaction, "MapTap: set channel")
+
+class SettingsRoleSelect(discord.ui.RoleSelect):
+    def __init__(self):
+        super().__init__(
+            placeholder="Select admin roles (optional)",
+            min_values=0,
+            max_values=10,
+            row=1
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        view: "SettingsView" = self.view  # type: ignore
+        view.settings["admin_role_ids"] = [r.id for r in self.values]
+        await view.save_refresh(interaction, "MapTap: set admin roles")
 
 class SettingsView(discord.ui.View):
     def __init__(self, settings: Dict[str, Any], sha: Optional[str]):
@@ -467,65 +472,55 @@ class SettingsView(discord.ui.View):
         self.settings = settings
         self.sha = sha
 
-        # Channel select
-        self.channel_select = discord.ui.ChannelSelect(
-            placeholder="Select the MapTap channel",
-            channel_types=[discord.ChannelType.text],
-            min_values=1,
-            max_values=1
-        )
-        self.channel_select.callback = self._on_channel_select  # type: ignore
-        self.add_item(self.channel_select)
+        # Row 0–1 selects
+        self.add_item(SettingsChannelSelect())
+        self.add_item(SettingsRoleSelect())
 
-        # Role select
-        self.role_select = discord.ui.RoleSelect(
-            placeholder="Select admin roles (optional)",
-            min_values=0,
-            max_values=10
-        )
-        self.role_select.callback = self._on_role_select  # type: ignore
-        self.add_item(self.role_select)
-
-        # Weekday dropdowns
-        sch = self.settings.get("schedule", DEFAULT_SETTINGS["schedule"])
-        self.add_item(WeeklyDaySelect(int(sch.get("weekly_day", 6))))
-        self.add_item(RivalryDaySelect(int(sch.get("rivalry_day", 4))))
-
-        # Buttons
-        self.btn_emojis = discord.ui.Button(label="Edit Reaction Emojis", style=discord.ButtonStyle.primary)
-        self.btn_emojis.callback = self._on_emojis  # type: ignore
+        # Row 2: edit buttons
+        self.btn_emojis = discord.ui.Button(label="Edit Reaction Emojis", style=discord.ButtonStyle.primary, row=2)
+        self.btn_schedule = discord.ui.Button(label="Edit Schedule (UK)", style=discord.ButtonStyle.primary, row=2)
+        self.btn_emojis.callback = self._on_emojis
+        self.btn_schedule.callback = self._on_schedule
         self.add_item(self.btn_emojis)
-
-        self.btn_schedule = discord.ui.Button(label="Edit Schedule (UK)", style=discord.ButtonStyle.primary)
-        self.btn_schedule.callback = self._on_schedule  # type: ignore
         self.add_item(self.btn_schedule)
 
-        self.btn_bot = discord.ui.Button(label=self._lbl("Bot", bool(self.settings.get("enabled", True))), style=discord.ButtonStyle.secondary)
-        self.btn_bot.callback = self._toggle_bot  # type: ignore
+        # Row 3: toggles
+        self.btn_bot = discord.ui.Button(label=self._lbl("Bot", self.settings.get("enabled", True)), style=discord.ButtonStyle.success, row=3)
+        self.btn_post = discord.ui.Button(label=self._lbl("Daily Post", self.settings.get("daily_post_enabled", True)), style=discord.ButtonStyle.success, row=3)
+        self.btn_board = discord.ui.Button(label=self._lbl("Daily Scoreboard", self.settings.get("daily_scoreboard_enabled", True)), style=discord.ButtonStyle.success, row=3)
+        self.btn_bot.callback = self._toggle_bot
+        self.btn_post.callback = self._toggle_post
+        self.btn_board.callback = self._toggle_board
         self.add_item(self.btn_bot)
-
-        self.btn_post = discord.ui.Button(label=self._lbl("Daily Post", bool(self.settings.get("daily_post_enabled", True))), style=discord.ButtonStyle.secondary)
-        self.btn_post.callback = self._toggle_post  # type: ignore
         self.add_item(self.btn_post)
-
-        self.btn_board = discord.ui.Button(label=self._lbl("Daily Board", bool(self.settings.get("daily_scoreboard_enabled", True))), style=discord.ButtonStyle.secondary)
-        self.btn_board.callback = self._toggle_board  # type: ignore
         self.add_item(self.btn_board)
 
-        self.btn_weekly = discord.ui.Button(label=self._lbl("Weekly Roundup", bool(self.settings.get("weekly_roundup_enabled", True))), style=discord.ButtonStyle.secondary)
-        self.btn_weekly.callback = self._toggle_weekly  # type: ignore
+        # Row 4: weekly/rivalry/close
+        self.btn_weekly = discord.ui.Button(label=self._lbl("Weekly Roundup", self.settings.get("weekly_roundup_enabled", True)), style=discord.ButtonStyle.success, row=4)
+        self.btn_rivalry = discord.ui.Button(label=self._lbl("Rivalry", self.settings.get("rivalry_enabled", True)), style=discord.ButtonStyle.success, row=4)
+        self.btn_close = discord.ui.Button(label="Close", style=discord.ButtonStyle.danger, row=4)
+        self.btn_weekly.callback = self._toggle_weekly
+        self.btn_rivalry.callback = self._toggle_rivalry
+        self.btn_close.callback = self._close
         self.add_item(self.btn_weekly)
-
-        self.btn_rivalry = discord.ui.Button(label=self._lbl("Rivalry", bool(self.settings.get("rivalry_enabled", True))), style=discord.ButtonStyle.secondary)
-        self.btn_rivalry.callback = self._toggle_rivalry  # type: ignore
         self.add_item(self.btn_rivalry)
-
-        self.btn_close = discord.ui.Button(label="Close", style=discord.ButtonStyle.danger)
-        self.btn_close.callback = self._close  # type: ignore
         self.add_item(self.btn_close)
+
+        self._refresh_button_styles()
 
     def _lbl(self, name: str, state: bool) -> str:
         return f"{name}: {'ON' if state else 'OFF'}"
+
+    def _refresh_button_styles(self):
+        # green when ON, grey when OFF
+        def style_for(on: bool) -> discord.ButtonStyle:
+            return discord.ButtonStyle.success if on else discord.ButtonStyle.secondary
+
+        self.btn_bot.style = style_for(bool(self.settings.get("enabled", True)))
+        self.btn_post.style = style_for(bool(self.settings.get("daily_post_enabled", True)))
+        self.btn_board.style = style_for(bool(self.settings.get("daily_scoreboard_enabled", True)))
+        self.btn_weekly.style = style_for(bool(self.settings.get("weekly_roundup_enabled", True)))
+        self.btn_rivalry.style = style_for(bool(self.settings.get("rivalry_enabled", True)))
 
     def embed(self) -> discord.Embed:
         ch = f"<#{self.settings['channel_id']}>" if self.settings.get("channel_id") else "Not set"
@@ -535,62 +530,30 @@ class SettingsView(discord.ui.View):
         em = self.settings.get("emojis", {})
         sch = self.settings.get("schedule", {})
 
-        # Wrap emoji strings in backticks so custom emoji strings always show in the embed
-        emoji_block = (
-            f"Recorded: `{em.get('recorded', '🌏')}`\n"
-            f"Too high: `{em.get('too_high', '❌')}`\n"
-            f"Rescan: `{em.get('rescan_ingested', '🔁')}`"
+        desc = (
+            f"**Channel:** {ch}\n"
+            f"**Admin roles:** {roles_str}\n\n"
+            f"**Schedule (UK):**\n"
+            f"Daily post: **{sch.get('daily_post','00:00')}**\n"
+            f"Daily scoreboard: **{sch.get('daily_scoreboard','23:30')}**\n"
+            f"Weekly roundup: **{weekday_name(sch.get('weekly_day',6))} {sch.get('weekly_time','23:45')}**\n"
+            f"Rivalry: **{weekday_name(sch.get('rivalry_day',4))} {sch.get('rivalry_time','12:00')}** (≤ {sch.get('rivalry_gap',25)} pts)\n\n"
+            f"**Reactions:**\n"
+            f"Recorded: {em.get('recorded','🌏')}\n"
+            f"Too high: {em.get('too_high','❌')}\n"
+            f"Rescan ingested: {em.get('rescan_ingested','🔁')}"
         )
-
-        schedule_block = (
-            f"Daily post: **{sch.get('daily_post', '00:00')}**\n"
-            f"Daily scoreboard: **{sch.get('daily_scoreboard', '23:30')}**\n"
-            f"Weekly roundup: **{weekday_name(sch.get('weekly_day', 6))} {sch.get('weekly_time', '23:45')}**\n"
-            f"Rivalry: **{weekday_name(sch.get('rivalry_day', 4))} {sch.get('rivalry_time', '12:00')}** (≤ {sch.get('rivalry_gap', 25)} pts)"
-        )
-
-        e = discord.Embed(
-            title="🗺️ MapTap Settings",
-            description=(
-                f"**Channel:** {ch}\n"
-                f"**Admin roles:** {roles_str}\n\n"
-                f"**{self._lbl('Bot', bool(self.settings.get('enabled', True)))}**\n"
-                f"**{self._lbl('Daily Post', bool(self.settings.get('daily_post_enabled', True)))}**\n"
-                f"**{self._lbl('Daily Board', bool(self.settings.get('daily_scoreboard_enabled', True)))}**\n"
-                f"**{self._lbl('Weekly Roundup', bool(self.settings.get('weekly_roundup_enabled', True)))}**\n"
-                f"**{self._lbl('Rivalry', bool(self.settings.get('rivalry_enabled', True)))}**\n\n"
-                f"**Schedule (UK):**\n{schedule_block}\n\n"
-                f"**Reactions:**\n{emoji_block}"
-            ),
-            color=0xF1C40F
-        )
+        e = discord.Embed(title="🗺️ MapTap Settings", description=desc, color=0xF1C40F)
         e.set_footer(text="Changes save to GitHub immediately.")
         return e
 
-    async def save_refresh(self, interaction: discord.Interaction, message: str):
-        current, cur_sha = load_settings()
+    async def save_refresh(self, interaction: discord.Interaction, msg: str):
+        current, current_sha = load_settings()
         current.update(self.settings)
-        save_settings(current, cur_sha, message)
+        save_settings(current, current_sha, msg)
         self.settings = current
-
-        # refresh button labels
-        self.btn_bot.label = self._lbl("Bot", bool(self.settings.get("enabled", True)))
-        self.btn_post.label = self._lbl("Daily Post", bool(self.settings.get("daily_post_enabled", True)))
-        self.btn_board.label = self._lbl("Daily Board", bool(self.settings.get("daily_scoreboard_enabled", True)))
-        self.btn_weekly.label = self._lbl("Weekly Roundup", bool(self.settings.get("weekly_roundup_enabled", True)))
-        self.btn_rivalry.label = self._lbl("Rivalry", bool(self.settings.get("rivalry_enabled", True)))
-
+        self._refresh_button_styles()
         await interaction.response.edit_message(embed=self.embed(), view=self)
-
-    async def _on_channel_select(self, interaction: discord.Interaction):
-        # channel_select.values is a list of channels
-        picked = self.channel_select.values[0]
-        self.settings["channel_id"] = picked.id
-        await self.save_refresh(interaction, "MapTap: set channel")
-
-    async def _on_role_select(self, interaction: discord.Interaction):
-        self.settings["admin_role_ids"] = [r.id for r in self.role_select.values]
-        await self.save_refresh(interaction, "MapTap: set admin roles")
 
     async def _on_emojis(self, interaction: discord.Interaction):
         await interaction.response.send_modal(EmojiModal(self))
@@ -600,26 +563,35 @@ class SettingsView(discord.ui.View):
 
     async def _toggle_bot(self, interaction: discord.Interaction):
         self.settings["enabled"] = not bool(self.settings.get("enabled", True))
+        self.btn_bot.label = self._lbl("Bot", self.settings["enabled"])
         await self.save_refresh(interaction, "MapTap: toggle bot")
 
     async def _toggle_post(self, interaction: discord.Interaction):
         self.settings["daily_post_enabled"] = not bool(self.settings.get("daily_post_enabled", True))
+        self.btn_post.label = self._lbl("Daily Post", self.settings["daily_post_enabled"])
         await self.save_refresh(interaction, "MapTap: toggle daily post")
 
     async def _toggle_board(self, interaction: discord.Interaction):
         self.settings["daily_scoreboard_enabled"] = not bool(self.settings.get("daily_scoreboard_enabled", True))
-        await self.save_refresh(interaction, "MapTap: toggle daily board")
+        self.btn_board.label = self._lbl("Daily Scoreboard", self.settings["daily_scoreboard_enabled"])
+        await self.save_refresh(interaction, "MapTap: toggle daily scoreboard")
 
     async def _toggle_weekly(self, interaction: discord.Interaction):
         self.settings["weekly_roundup_enabled"] = not bool(self.settings.get("weekly_roundup_enabled", True))
+        self.btn_weekly.label = self._lbl("Weekly Roundup", self.settings["weekly_roundup_enabled"])
         await self.save_refresh(interaction, "MapTap: toggle weekly")
 
     async def _toggle_rivalry(self, interaction: discord.Interaction):
         self.settings["rivalry_enabled"] = not bool(self.settings.get("rivalry_enabled", True))
+        self.btn_rivalry.label = self._lbl("Rivalry", self.settings["rivalry_enabled"])
         await self.save_refresh(interaction, "MapTap: toggle rivalry")
 
     async def _close(self, interaction: discord.Interaction):
         await interaction.response.edit_message(content="✅ Closed.", embed=None, view=None)
+
+# =========================
+# MapTap Companion Bot (FULL FILE) — PART 2/2
+# =========================
 
 # =====================================================
 # SLASH COMMANDS
@@ -627,9 +599,11 @@ class SettingsView(discord.ui.View):
 @client.tree.command(name="maptapsettings", description="Configure MapTap bot settings")
 async def maptapsettings(interaction: discord.Interaction):
     settings, sha = load_settings()
+
     if not isinstance(interaction.user, discord.Member):
         await interaction.response.send_message("❌ Use this in the server.", ephemeral=True)
         return
+
     if not has_admin(interaction.user, settings):
         await interaction.response.send_message("❌ You don’t have permission.", ephemeral=True)
         return
@@ -648,10 +622,13 @@ async def mymaptap(interaction: discord.Interaction, user: Optional[discord.Memb
 
     stats = (users or {}).get(uid)
     if not stats or int(stats.get("days_played", 0)) <= 0:
-        await interaction.response.send_message(f"{target.display_name} hasn’t recorded any MapTap scores yet 🗺️", ephemeral=False)
+        await interaction.response.send_message(
+            f"{target.display_name} hasn’t recorded any MapTap scores yet 🗺️",
+            ephemeral=False
+        )
         return
 
-    # Best day
+    # best day
     best_day = None
     best_score = -1
     for dk, bucket in (scores or {}).items():
@@ -684,6 +661,7 @@ async def mymaptap(interaction: discord.Interaction, user: Optional[discord.Memb
 @app_commands.describe(messages="How many recent messages to scan (max 50)")
 async def rescan(interaction: discord.Interaction, messages: int = 10):
     settings, _ = load_settings()
+
     if not isinstance(interaction.user, discord.Member):
         await interaction.response.send_message("❌ Server only.", ephemeral=True)
         return
@@ -703,12 +681,15 @@ async def rescan(interaction: discord.Interaction, messages: int = 10):
 
     scores, ssha = gh_load_json(SCORES_PATH, {})
     users, usha = gh_load_json(USERS_PATH, {})
-    if not isinstance(scores, dict): scores = {}
-    if not isinstance(users, dict): users = {}
 
-    matched = 0
+    if not isinstance(scores, dict):
+        scores = {}
+    if not isinstance(users, dict):
+        users = {}
+
     ingested = 0
     skipped = 0
+    matched = 0
 
     async for msg in ch.history(limit=messages):
         if msg.author.bot or not msg.content:
@@ -723,7 +704,8 @@ async def rescan(interaction: discord.Interaction, messages: int = 10):
 
         if score > MAX_SCORE:
             skipped += 1
-            # (optional) react too high, but not required on rescan
+            # optional reaction for too-high during rescan:
+            # await react_safe(msg, em.get("too_high", "❌"), "❌")
             continue
 
         msg_time = msg.created_at.replace(tzinfo=UTC).astimezone(UK_TZ)
@@ -733,16 +715,16 @@ async def rescan(interaction: discord.Interaction, messages: int = 10):
         scores.setdefault(dk, {})
         bucket = scores[dk]
 
-        # NO DUPLICATE REACTION — silent skip
+        # silent duplicate skip (no reaction)
         if uid in bucket:
             skipped += 1
             continue
 
         bucket[uid] = {"score": score, "updated_at": msg_time.isoformat()}
 
-        user_stats = users.setdefault(uid, {"total_points": 0, "days_played": 0, "best_streak": 0})
-        user_stats["days_played"] += 1
-        user_stats["total_points"] += score
+        u = users.setdefault(uid, {"total_points": 0, "days_played": 0, "best_streak": 0})
+        u["days_played"] += 1
+        u["total_points"] += score
 
         ingested += 1
         await react_safe(msg, em.get("rescan_ingested", "🔁"), "🔁")
@@ -772,6 +754,7 @@ async def do_daily_scoreboard(settings: Dict[str, Any]):
 
     dk = today_key()
     bucket = scores.get(dk, {})
+
     rows: List[Tuple[str, int]] = []
     if isinstance(bucket, dict):
         for uid, entry in bucket.items():
@@ -800,9 +783,10 @@ async def do_weekly_roundup(settings: Dict[str, Any]):
     now = datetime.now(UK_TZ)
     mon = monday_of_week(now)
     sun = mon + timedelta(days=6)
-    days = [(mon + timedelta(days=i)).isoformat() for i in range(7)]
 
+    days = [(mon + timedelta(days=i)).isoformat() for i in range(7)]
     weekly: Dict[str, Dict[str, int]] = {}
+
     for dk in days:
         bucket = scores.get(dk, {})
         if not isinstance(bucket, dict):
@@ -820,10 +804,10 @@ async def do_weekly_roundup(settings: Dict[str, Any]):
 
     rows: List[Tuple[str, int, int]] = [(uid, v["total"], v["days"]) for uid, v in weekly.items()]
     rows.sort(key=lambda x: x[1], reverse=True)
+
     await ch.send(build_weekly_roundup_text(mon, sun, rows))
 
 async def do_rivalry(settings: Dict[str, Any]):
-    # Pick top 2 totals THIS WEEK; only post if within rivalry_gap
     ch = get_channel(settings)
     if not ch:
         return
@@ -855,10 +839,9 @@ async def do_rivalry(settings: Dict[str, Any]):
 
     board = sorted(totals.items(), key=lambda x: x[1], reverse=True)
     (a_uid, a_total), (b_uid, b_total) = board[0], board[1]
-
     gap = abs(a_total - b_total)
-    max_gap = int(settings.get("schedule", {}).get("rivalry_gap", 25))
-    if gap > max_gap:
+
+    if gap > int(settings["schedule"].get("rivalry_gap", 25)):
         return
 
     await ch.send(
@@ -869,22 +852,22 @@ async def do_rivalry(settings: Dict[str, Any]):
     )
 
 # =====================================================
-# SCHEDULER (minute tick)
+# SCHEDULER TICK (every minute, uses settings.schedule)
 # =====================================================
 @tasks.loop(minutes=1)
 async def scheduler_tick():
     settings, sha = load_settings()
+
     if not settings.get("enabled", True):
         return
 
-    ch = get_channel(settings)
-    if not ch:
+    # if no channel set, just idle
+    if not get_channel(settings):
         return
 
     now = datetime.now(UK_TZ)
     hhmm = now.strftime("%H:%M")
     today = today_key(now)
-    week = monday_key(now)
 
     sch = settings.get("schedule", DEFAULT_SETTINGS["schedule"])
     last = settings.get("last_run", DEFAULT_SETTINGS["last_run"])
@@ -894,7 +877,9 @@ async def scheduler_tick():
     # Daily post
     if settings.get("daily_post_enabled", True) and hhmm == sch.get("daily_post", "00:00"):
         if last.get("daily_post") != today:
-            await ch.send(build_daily_prompt())
+            ch = get_channel(settings)
+            if ch:
+                await ch.send(build_daily_prompt())
             settings["last_run"]["daily_post"] = today
             fired = True
 
@@ -905,21 +890,20 @@ async def scheduler_tick():
             settings["last_run"]["daily_scoreboard"] = today
             fired = True
 
-    # Weekly roundup (day selectable)
+    # Weekly roundup (selected weekday)
     if settings.get("weekly_roundup_enabled", True) and hhmm == sch.get("weekly_time", "23:45"):
-        if now.weekday() == int(sch.get("weekly_day", 6)) and last.get("weekly_roundup") != week:
+        if now.weekday() == int(sch.get("weekly_day", 6)) and last.get("weekly_roundup") != today:
             await do_weekly_roundup(settings)
-            settings["last_run"]["weekly_roundup"] = week
+            settings["last_run"]["weekly_roundup"] = today
             fired = True
 
-    # Rivalry (once per week, day selectable)
+    # Rivalry (selected weekday)
     if settings.get("rivalry_enabled", True) and hhmm == sch.get("rivalry_time", "12:00"):
-        if now.weekday() == int(sch.get("rivalry_day", 4)) and last.get("rivalry") != week:
+        if now.weekday() == int(sch.get("rivalry_day", 4)) and last.get("rivalry") != today:
             await do_rivalry(settings)
-            settings["last_run"]["rivalry"] = week
+            settings["last_run"]["rivalry"] = today
             fired = True
 
-    # Save only if something fired (avoids constant GitHub writes)
     if fired:
         try:
             save_settings(settings, sha, f"MapTap: update last_run {today} {hhmm}")
@@ -959,30 +943,32 @@ async def on_message(message: discord.Message):
 
     scores, ssha = gh_load_json(SCORES_PATH, {})
     users, usha = gh_load_json(USERS_PATH, {})
-    if not isinstance(scores, dict): scores = {}
-    if not isinstance(users, dict): users = {}
+
+    if not isinstance(scores, dict):
+        scores = {}
+    if not isinstance(users, dict):
+        users = {}
 
     scores.setdefault(dk, {})
     bucket = scores[dk]
 
-    user_stats = users.setdefault(uid, {"total_points": 0, "days_played": 0, "best_streak": 0})
+    user = users.setdefault(uid, {"total_points": 0, "days_played": 0, "best_streak": 0})
 
     prev = bucket.get(uid)
     if prev and isinstance(prev, dict) and "score" in prev:
-        # overwrite: subtract old score from total first
         try:
-            user_stats["total_points"] -= int(prev["score"])
+            user["total_points"] -= int(prev["score"])
         except Exception:
             pass
     else:
-        user_stats["days_played"] += 1
+        user["days_played"] += 1
 
-    user_stats["total_points"] += score
+    user["total_points"] += score
     bucket[uid] = {"score": score, "updated_at": msg_time.isoformat()}
 
     cur_streak = calculate_current_streak(scores, uid)
-    if cur_streak > int(user_stats.get("best_streak", 0)):
-        user_stats["best_streak"] = cur_streak
+    if cur_streak > int(user.get("best_streak", 0)):
+        user["best_streak"] = cur_streak
 
     gh_save_json(SCORES_PATH, scores, ssha, f"MapTap: score {dk}")
     gh_save_json(USERS_PATH, users, usha, f"MapTap: user {uid}")
