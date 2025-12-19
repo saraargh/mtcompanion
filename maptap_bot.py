@@ -47,7 +47,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "weekly_roundup_enabled": True,
     "admin_role_ids": [],  # set via settings panel
     "emojis": {
-        "recorded": "✅",        # score registered
+        "recorded": "🌏",        # score registered
         "too_high": "❌",        # score > MAX_SCORE
         "rescan_ingested": "🔁", # rescan fixed / ingested
         "config_issue": "⚠️"     # optional future use
@@ -212,8 +212,7 @@ def build_daily_prompt() -> str:
     return (
         "🗺️ **Daily MapTap is live!**\n"
         f"👉 {MAPTAP_URL}\n\n"
-        "Post your results **exactly as shared from the app** so I can track scores ✈️\n"
-        f"_(Scores over **{MAX_SCORE}** won’t be counted.)_"
+        "Post your results **exactly as shared from the app** so I can track scores ✈️"
     )
 
 def build_daily_scoreboard_text(date_key: str, sorted_rows: List[Tuple[str, int]]) -> str:
