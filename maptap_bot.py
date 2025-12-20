@@ -467,8 +467,8 @@ class MapTapSettingsView(discord.ui.View):
         times_block = (
             f"Daily post: **{t.get('daily_post','00:00')}**\n"
             f"Daily scoreboard: **{t.get('daily_scoreboard','23:30')}**\n"
-            f"Weekly roundup (Sun): **{t.get('weekly_roundup','23:45')}**\n"
-            f"Rivalry alert (Fri): **{t.get('rivalry','14:00')}**"
+            f"Weekly roundup (Sundays): **{t.get('weekly_roundup','23:45')}**\n"
+            f"Rivalry alert (Saturdays): **{t.get('rivalry','14:00')}**"
         )
 
         e = discord.Embed(
