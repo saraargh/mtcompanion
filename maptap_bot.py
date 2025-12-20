@@ -471,24 +471,23 @@ class MapTapSettingsView(discord.ui.View):
             f"Rivalry alert (Saturdays): **{t.get('rivalry','14:00')}**"
         )
 
-        e = discord.Embed(
-            title="🗺️ MapTap Settings",
-            description=(
-        f"**Channel:** {channel_str}\n"
-        f"**Admin roles:** {roles_str}\n"
-        f"────────────────────\n"
+        e = discord.Embed(title="🗺️ MapTap Settings", color=0xF1C40F)
+e.description = f"**Channel:** {channel_str}\n**Admin roles:** {roles_str}"
+
+        status_block = (
         f"**Bot enabled:** {'✅' if self.settings.get('enabled') else '❌'}\n"
         f"**Daily post:** {'✅' if self.settings.get('daily_post_enabled') else '❌'}\n"
         f"**Daily scoreboard:** {'✅' if self.settings.get('daily_scoreboard_enabled') else '❌'}\n"
         f"**Weekly roundup:** {'✅' if self.settings.get('weekly_roundup_enabled') else '❌'}\n"
-        f"**Rivalry alerts:** {'✅' if self.settings.get('rivalry_enabled') else '❌'}\n"
-        f"────────────────────\n"
-        f"**Times (UK):**\n{times_block}\n\n"
-        f"**Reactions:**\n{emoji_block}"
-
-        ),
-            color=0xF1C40F
+        f"**Rivalry alerts:** {'✅' if self.settings.get('rivalry_enabled') else '❌'}"
         )
+        e.add_field(name="🧭 Status", value=status_block, inline=False)
+
+        times_block = self.settings.get("times", {})
+        emoji_block = self.settings.get("emojis", {})
+        e.add_field(name="🕒 Times (UK)", value=str(times_block), inline=False)
+        e.add_field(name="✨ Reactions", value=str(emoji_block), inline=False)
+
         e.set_footer(text="Changes save to GitHub immediately.")
         return e
 
