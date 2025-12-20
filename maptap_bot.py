@@ -63,7 +63,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "daily_post": "00:00",
         "daily_scoreboard": "23:30",
         "weekly_roundup": "23:45",
-        "rivalry": "21:00"
+        "rivalry": "14:00"
         
     },
 
@@ -411,8 +411,8 @@ class TimeSettingsModal(discord.ui.Modal, title="MapTap Scheduled Times (UK)"):
     )
     
     rivalry = discord.ui.TextInput(
-        label="Rivalry alert time (HH:MM) (Friday)",
-        placeholder="21:00",
+        label="Rivalry alert time (HH:MM) (Sunday)",
+        placeholder="14:00",
         required=True,
         max_length=5
     )
@@ -424,7 +424,7 @@ class TimeSettingsModal(discord.ui.Modal, title="MapTap Scheduled Times (UK)"):
         self.daily_post.default = str(t.get("daily_post", "00:00"))
         self.daily_scoreboard.default = str(t.get("daily_scoreboard", "23:30"))
         self.weekly_roundup.default = str(t.get("weekly_roundup", "23:45"))
-        self.rivalry.default = str(t.get("rivalry", "21:00"))
+        self.rivalry.default = str(t.get("rivalry", "14:00"))
 
     async def on_submit(self, interaction: discord.Interaction):
         # validate HH:MM
@@ -468,7 +468,7 @@ class MapTapSettingsView(discord.ui.View):
             f"Daily post: **{t.get('daily_post','00:00')}**\n"
             f"Daily scoreboard: **{t.get('daily_scoreboard','23:30')}**\n"
             f"Weekly roundup (Sun): **{t.get('weekly_roundup','23:45')}**\n"
-            f"Rivalry alert (Fri): **{t.get('rivalry','21:00')}**"
+            f"Rivalry alert (Fri): **{t.get('rivalry','14:00')}**"
         )
 
         e = discord.Embed(
@@ -899,7 +899,7 @@ async def do_rivalry_alert(settings: Dict[str, Any]):
             await ch.send(
                 "⚔️ **Rivalry Alert!**\n"
                 f"<@{uid_b}> is only **{diff} points** behind <@{uid_a}> this week…\n"
-                "Friday night drama loading 👀"
+                "One day can change everything! 👀"
             )
             return
 
@@ -943,9 +943,9 @@ async def scheduler_tick():
             settings["last_run"]["weekly_roundup"] = today
             fired = True
             
-    # Rivalry alert (Friday)
-    if settings.get("rivalry_enabled", True) and hhmm == times.get("rivalry", "21:00"):
-        if now.weekday() == 4 and last_run.get("rivalry") != today:  # Friday
+    # Rivalry alert (Saturday)
+    if settings.get("rivalry_enabled", True) and hhmm == times.get("rivalry", "14:00"):
+        if now.weekday() == 5 and last_run.get("rivalry") != today:  # Saturday
             await do_rivalry_alert(settings)
             settings["last_run"]["rivalry"] = today
             fired = True
