@@ -480,8 +480,8 @@ class MapTapSettingsView(discord.ui.View):
                 f"**Daily post:** {'✅' if self.settings.get('daily_post_enabled') else '❌'}\n"
                 f"**Daily scoreboard:** {'✅' if self.settings.get('daily_scoreboard_enabled') else '❌'}\n"
                 f"**Weekly roundup:** {'✅' if self.settings.get('weekly_roundup_enabled') else '❌'}\n\n"
-                f"**Times (UK):**\n{times_block}\n\n"
                 f"**Rivalry alerts:** {'✅' if self.settings.get('rivalry_enabled') else '❌'}\n"
+                f"**Times (UK):**\n{times_block}\n\n"
                 f"**Reactions:**\n{emoji_block}"
             ),
             color=0xF1C40F
