@@ -474,18 +474,19 @@ class MapTapSettingsView(discord.ui.View):
         e = discord.Embed(
             title="🗺️ MapTap Settings",
             description=(
-                f"**Channel:** {channel_str}\n"
-                f"**Admin roles:** {roles_str}\n\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"**Bot enabled:** {'✅' if self.settings.get('enabled') else '❌'}\n"
-                f"**Daily post:** {'✅' if self.settings.get('daily_post_enabled') else '❌'}\n"
-                f"**Daily scoreboard:** {'✅' if self.settings.get('daily_scoreboard_enabled') else '❌'}\n"
-                f"**Weekly roundup:** {'✅' if self.settings.get('weekly_roundup_enabled') else '❌'}\n"
-                f"**Rivalry alerts:** {'✅' if self.settings.get('rivalry_enabled') else '❌'}\n\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"**Times (UK):**\n{times_block}\n\n"
-                f"**Reactions:**\n{emoji_block}"
-            ),
+        f"**Channel:** {channel_str}\n"
+        f"**Admin roles:** {roles_str}\n"
+        f"────────────────────\n"
+        f"**Bot enabled:** {'✅' if self.settings.get('enabled') else '❌'}\n"
+        f"**Daily post:** {'✅' if self.settings.get('daily_post_enabled') else '❌'}\n"
+        f"**Daily scoreboard:** {'✅' if self.settings.get('daily_scoreboard_enabled') else '❌'}\n"
+        f"**Weekly roundup:** {'✅' if self.settings.get('weekly_roundup_enabled') else '❌'}\n"
+        f"**Rivalry alerts:** {'✅' if self.settings.get('rivalry_enabled') else '❌'}\n"
+        f"────────────────────\n"
+        f"**Times (UK):**\n{times_block}\n\n"
+        f"**Reactions:**\n{emoji_block}"
+
+        ),
             color=0xF1C40F
         )
         e.set_footer(text="Changes save to GitHub immediately.")
