@@ -483,8 +483,6 @@ class MapTapSettingsView(discord.ui.View):
         )
         e.add_field(name="🧭 Status", value=status_block, inline=False)
 
-        times_block = self.settings.get("times", {})
-        emoji_block = self.settings.get("emojis", {})
         e.add_field(name="🕒 Times (UK)", value=str(times_block), inline=False)
         e.add_field(name="✨ Reactions", value=str(emoji_block), inline=False)
 
