@@ -411,7 +411,7 @@ class TimeSettingsModal(discord.ui.Modal, title="MapTap Scheduled Times (UK)"):
     )
     
     rivalry = discord.ui.TextInput(
-        label="Rivalry alert time (HH:MM) (Sunday)",
+        label="Rivalry alert time (HH:MM) (Saturday)",
         placeholder="14:00",
         required=True,
         max_length=5
