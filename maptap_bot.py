@@ -47,6 +47,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "daily_post_enabled": True,
     "daily_scoreboard_enabled": True,
     "weekly_roundup_enabled": True,
+    "rivalry_enabled": True,
     "admin_role_ids": [],  # set via settings panel
 
     # Emoji defaults (configurable via /maptapsettings modal)
@@ -61,14 +62,17 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "times": {
         "daily_post": "00:00",
         "daily_scoreboard": "23:30",
-        "weekly_roundup": "23:45"
+        "weekly_roundup": "23:45",
+        "rivalry": "21:00"
+        
     },
 
     # Prevent double-posting (updated automatically)
     "last_run": {
         "daily_post": None,        # YYYY-MM-DD
         "daily_scoreboard": None,  # YYYY-MM-DD
-        "weekly_roundup": None     # YYYY-MM-DD (Sunday date)
+        "weekly_roundup": None,    # YYYY-MM-DD (Sunday date)
+        "rivalry": None
     }
 }
 
@@ -176,6 +180,7 @@ def load_settings() -> Tuple[Dict[str, Any], Optional[str]]:
         "daily_post": _normalize_hhmm(times_in.get("daily_post"), DEFAULT_SETTINGS["times"]["daily_post"]),
         "daily_scoreboard": _normalize_hhmm(times_in.get("daily_scoreboard"), DEFAULT_SETTINGS["times"]["daily_scoreboard"]),
         "weekly_roundup": _normalize_hhmm(times_in.get("weekly_roundup"), DEFAULT_SETTINGS["times"]["weekly_roundup"]),
+        "rivalry": _normalize_hhmm(times_in.get("rivalry"), DEFAULT_SETTINGS["times"]["rivalry"]),
     }
 
     # Merge last_run safely
@@ -404,6 +409,13 @@ class TimeSettingsModal(discord.ui.Modal, title="MapTap Scheduled Times (UK)"):
         required=True,
         max_length=5
     )
+    
+    rivalry = discord.ui.TextInput(
+        label="Rivalry alert time (HH:MM) (Friday)",
+        placeholder="21:00",
+        required=True,
+        max_length=5
+    )
 
     def __init__(self, view_ref: "MapTapSettingsView"):
         super().__init__()
@@ -412,6 +424,7 @@ class TimeSettingsModal(discord.ui.Modal, title="MapTap Scheduled Times (UK)"):
         self.daily_post.default = str(t.get("daily_post", "00:00"))
         self.daily_scoreboard.default = str(t.get("daily_scoreboard", "23:30"))
         self.weekly_roundup.default = str(t.get("weekly_roundup", "23:45"))
+        self.rivalry.default = str(t.get("rivalry", "21:00"))
 
     async def on_submit(self, interaction: discord.Interaction):
         # validate HH:MM
@@ -419,6 +432,7 @@ class TimeSettingsModal(discord.ui.Modal, title="MapTap Scheduled Times (UK)"):
             "daily_post": str(self.daily_post.value).strip(),
             "daily_scoreboard": str(self.daily_scoreboard.value).strip(),
             "weekly_roundup": str(self.weekly_roundup.value).strip(),
+            "rivalry": str(self.rivalry.value).strip()
         }
         try:
             for v in vals.values():
@@ -453,7 +467,8 @@ class MapTapSettingsView(discord.ui.View):
         times_block = (
             f"Daily post: **{t.get('daily_post','00:00')}**\n"
             f"Daily scoreboard: **{t.get('daily_scoreboard','23:30')}**\n"
-            f"Weekly roundup (Sun): **{t.get('weekly_roundup','23:45')}**"
+            f"Weekly roundup (Sun): **{t.get('weekly_roundup','23:45')}**\n"
+            f"Rivalry alert (Fri): **{t.get('rivalry','21:00')}**"
         )
 
         e = discord.Embed(
@@ -466,6 +481,7 @@ class MapTapSettingsView(discord.ui.View):
                 f"**Daily scoreboard:** {'✅' if self.settings.get('daily_scoreboard_enabled') else '❌'}\n"
                 f"**Weekly roundup:** {'✅' if self.settings.get('weekly_roundup_enabled') else '❌'}\n\n"
                 f"**Times (UK):**\n{times_block}\n\n"
+                f"**Rivalry alerts:** {'✅' if self.settings.get('rivalry_enabled') else '❌'}\n"
                 f"**Reactions:**\n{emoji_block}"
             ),
             color=0xF1C40F
@@ -536,6 +552,10 @@ class MapTapSettingsView(discord.ui.View):
     async def close(self, interaction: discord.Interaction, _):
         await interaction.response.edit_message(content="✅ Closed.", embed=None, view=None)
 
+    @discord.ui.button(label="Toggle Rivalry Alerts", style=discord.ButtonStyle.secondary)
+    async def toggle_rivalry(self, interaction: discord.Interaction, _):
+        self.settings["rivalry_enabled"] = not bool(self.settings.get("rivalry_enabled", True))
+        await self._save_refresh(interaction, "MapTap: toggle rivalry alerts")
 # =====================================================
 # SLASH COMMAND: /mymaptap
 # =====================================================
@@ -839,6 +859,49 @@ async def do_weekly_roundup(settings: Dict[str, Any]):
     rows.sort(key=lambda x: x[1], reverse=True)
 
     await ch.send(build_weekly_roundup_text(mon, sun, rows))
+    
+async def do_rivalry_alert(settings: Dict[str, Any]):
+    ch = get_configured_channel(settings)
+    if not ch:
+        return
+
+    scores, _ = github_load_json(SCORES_PATH, {})
+    if not isinstance(scores, dict):
+        return
+
+    now = datetime.now(UK_TZ)
+    mon = monday_of_week(now)
+    week_dates = [(mon + timedelta(days=i)).isoformat() for i in range(7)]
+
+    weekly_totals: Dict[str, int] = {}
+
+    for dkey in week_dates:
+        day = scores.get(dkey, {})
+        if not isinstance(day, dict):
+            continue
+        for uid, entry in day.items():
+            if not isinstance(entry, dict):
+                continue
+            weekly_totals[uid] = weekly_totals.get(uid, 0) + int(entry.get("score", 0))
+
+    # Require enough players
+    if len(weekly_totals) < 5:
+        return
+
+    leaderboard = sorted(weekly_totals.items(), key=lambda x: x[1], reverse=True)
+
+    for i in range(len(leaderboard) - 1):
+        uid_a, score_a = leaderboard[i]
+        uid_b, score_b = leaderboard[i + 1]
+
+        diff = score_a - score_b
+        if 0 < diff <= 15:
+            await ch.send(
+                "⚔️ **Rivalry Alert!**\n"
+                f"<@{uid_b}> is only **{diff} points** behind <@{uid_a}> this week…\n"
+                "Friday night drama loading 👀"
+            )
+            return
 
 # =====================================================
 # SCHEDULER (runs every minute, uses settings times)
@@ -878,6 +941,13 @@ async def scheduler_tick():
         if now.weekday() == 6 and last_run.get("weekly_roundup") != today:
             await do_weekly_roundup(settings)
             settings["last_run"]["weekly_roundup"] = today
+            fired = True
+            
+    # Rivalry alert (Friday)
+    if settings.get("rivalry_enabled", True) and hhmm == times.get("rivalry", "21:00"):
+        if now.weekday() == 4 and last_run.get("rivalry") != today:  # Friday
+            await do_rivalry_alert(settings)
+            settings["last_run"]["rivalry"] = today
             fired = True
 
     # Save settings ONLY if we fired something (prevents constant GitHub writes)
