@@ -472,7 +472,7 @@ class MapTapSettingsView(discord.ui.View):
         )
 
         e = discord.Embed(title="🗺️ MapTap Settings", color=0xF1C40F)
-e.description = f"**Channel:** {channel_str}\n**Admin roles:** {roles_str}"
+        e.description = f"**Channel:** {channel_str}\n**Admin roles:** {roles_str}"
 
         status_block = (
         f"**Bot enabled:** {'✅' if self.settings.get('enabled') else '❌'}\n"
