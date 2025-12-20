@@ -548,9 +548,6 @@ class MapTapSettingsView(discord.ui.View):
         self.settings["weekly_roundup_enabled"] = not bool(self.settings.get("weekly_roundup_enabled", True))
         await self._save_refresh(interaction, "MapTap: toggle weekly roundup")
 
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.danger)
-    async def close(self, interaction: discord.Interaction, _):
-        await interaction.response.edit_message(content="✅ Closed.", embed=None, view=None)
 
     @discord.ui.button(label="Toggle Rivalry Alerts", style=discord.ButtonStyle.secondary)
     async def toggle_rivalry(self, interaction: discord.Interaction, _):
