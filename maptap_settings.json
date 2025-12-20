@@ -4,6 +4,7 @@
   "daily_post_enabled": true,
   "daily_scoreboard_enabled": true,
   "weekly_roundup_enabled": true,
+  "rivalry_enabled": true,
   "admin_role_ids": [
     1413545658006110401,
     1404098545006546954,
@@ -20,15 +21,15 @@
   "times": {
     "daily_post": "00:00",
     "daily_scoreboard": "23:30",
-    "weekly_roundup": "23:45"
+    "weekly_roundup": "23:45",
+    "rivalry": "14:00"
   },
   "last_run": {
     "daily_post": "2025-12-20",
     "daily_scoreboard": "2025-12-19",
     "weekly_roundup": null,
-    "rivalry": "2025-12-19"
+    "rivalry": "2025-12-20"
   },
-  "rivalry_enabled": true,
   "schedule": {
     "daily_post": "00:00",
     "daily_scoreboard": "23:30",
