@@ -2,66 +2,118 @@
   "300738774332080128": {
     "total_points": 6243,
     "days_played": 9,
-    "best_streak": 9
+    "best_streak": 9,
+    "personal_best": {
+      "score": 908,
+      "date": "2025-12-23"
+    }
   },
   "277271767964188673": {
     "total_points": 3042,
     "days_played": 4,
-    "best_streak": 1
+    "best_streak": 1,
+    "personal_best": {
+      "score": 858,
+      "date": "2025-12-23"
+    }
   },
   "1258358477903102024": {
     "total_points": 3591,
     "days_played": 4,
-    "best_streak": 3
+    "best_streak": 3,
+    "personal_best": {
+      "score": 924,
+      "date": "2025-12-20"
+    }
   },
   "997973130553348206": {
     "total_points": 4162,
     "days_played": 5,
-    "best_streak": 3
+    "best_streak": 3,
+    "personal_best": {
+      "score": 910,
+      "date": "2025-12-18"
+    }
   },
   "460480780460752907": {
     "total_points": 3188,
     "days_played": 5,
-    "best_streak": 5
+    "best_streak": 5,
+    "personal_best": {
+      "score": 851,
+      "date": "2025-12-17"
+    }
   },
   "217015976300904465": {
     "total_points": 6327,
     "days_played": 7,
-    "best_streak": 7
+    "best_streak": 7,
+    "personal_best": {
+      "score": 964,
+      "date": "2025-12-19"
+    }
   },
   "536620158047879179": {
     "total_points": 4080,
     "days_played": 6,
-    "best_streak": 4
+    "best_streak": 4,
+    "personal_best": {
+      "score": 820,
+      "date": "2025-12-23"
+    }
   },
   "1238834298338152498": {
     "total_points": 2501,
     "days_played": 7,
-    "best_streak": 7
+    "best_streak": 7,
+    "personal_best": {
+      "score": 690,
+      "date": "2025-12-23"
+    }
   },
   "865401742274330674": {
     "total_points": 1715,
     "days_played": 2,
-    "best_streak": 1
+    "best_streak": 1,
+    "personal_best": {
+      "score": 876,
+      "date": "2025-12-20"
+    }
   },
   "636981787310161930": {
     "total_points": 626,
     "days_played": 1,
-    "best_streak": 1
+    "best_streak": 1,
+    "personal_best": {
+      "score": 626,
+      "date": "2025-12-18"
+    }
   },
   "941756923705962566": {
     "total_points": 1285,
     "days_played": 2,
-    "best_streak": 1
+    "best_streak": 1,
+    "personal_best": {
+      "score": 812,
+      "date": "2025-12-19"
+    }
   },
   "924686780408676392": {
     "total_points": 2318,
     "days_played": 3,
-    "best_streak": 2
+    "best_streak": 2,
+    "personal_best": {
+      "score": 929,
+      "date": "2025-12-21"
+    }
   },
   "581896881555374081": {
     "total_points": 2805,
     "days_played": 4,
-    "best_streak": 4
+    "best_streak": 4,
+    "personal_best": {
+      "score": 867,
+      "date": "2025-12-23"
+    }
   }
 }
