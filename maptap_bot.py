@@ -758,106 +758,55 @@ async def on_message(message: discord.Message):
 # =====================================================
 # SLASH COMMAND: /rescan (ADMIN ONLY) (UPDATED)
 # =====================================================
-@client.tree.command(
-    name="rescan",
-    description="Re-scan recent MapTap messages for missed scores (admin only)"
-)
-@app_commands.describe(
-    messages="How many recent messages to scan (max 50)"
-)
-async def rescan(
-    interaction: discord.Interaction,
-    messages: int = 10
-):
+@client.tree.command(name="rescan", description="Re-scan history to fix PBs and missing scores")
+async def rescan(interaction: discord.Interaction, messages: int = 20):
     settings, _ = load_settings()
-
-    if not isinstance(interaction.user, discord.Member):
-        await interaction.response.send_message("❌ This command can only be used in a server.", ephemeral=True)
-        return
-
     if not has_admin_access(interaction.user, settings):
-        await interaction.response.send_message("❌ You don’t have permission to run this.", ephemeral=True)
+        await interaction.response.send_message("❌ Admin only.", ephemeral=True)
         return
 
+    await interaction.response.defer(ephemeral=True)
+    
+    scores, s_sha = github_load_json(SCORES_PATH, {})
+    users, u_sha = github_load_json(USERS_PATH, {})
+    
+    # --- PART 1: DATA MIGRATION (Fixes PB from existing JSON) ---
+    for date_key, day_data in scores.items():
+        if not isinstance(day_data, dict): continue
+        for uid, entry in day_data.items():
+            sc = int(entry.get("score", 0))
+            u = users.setdefault(uid, {"total_points": 0, "days_played": 0, "best_streak": 0, "personal_best": {"score": 0, "date": "N/A"}})
+            
+            # If this historical score is higher than what's in the PB field, update it
+            if sc > u.get("personal_best", {}).get("score", 0):
+                u["personal_best"] = {"score": sc, "date": date_key}
+
+    # --- PART 2: MESSAGE SCAN (Grabs anything missed in chat) ---
     ch = get_configured_channel(settings)
-    if not ch:
-        await interaction.response.send_message("❌ MapTap channel is not configured.", ephemeral=True)
-        return
-
-    messages = max(1, min(messages, 50))
-
-    await interaction.response.send_message(
-        f"🔍 Scanning the last **{messages}** messages…",
-        ephemeral=True
-    )
-
-    em = settings.get("emojis", DEFAULT_SETTINGS["emojis"])
-
-    scanned = 0
     ingested = 0
-    skipped = 0
+    if ch:
+        async for msg in ch.history(limit=messages):
+            if msg.author.bot: continue
+            match = SCORE_REGEX.search(msg.content or "")
+            if match:
+                sc = int(match.group(1))
+                uid = str(msg.author.id)
+                d_key = today_key(msg.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(UK_TZ))
+                
+                day_bucket = scores.setdefault(d_key, {})
+                if uid not in day_bucket:
+                    u = users.setdefault(uid, {"total_points": 0, "days_played": 0, "best_streak": 0, "personal_best": {"score": 0, "date": "N/A"}})
+                    u["days_played"] += 1
+                    u["total_points"] += sc
+                    day_bucket[uid] = {"score": sc, "updated_at": msg.created_at.isoformat()}
+                    if sc > u["personal_best"]["score"]:
+                        u["personal_best"] = {"score": sc, "date": d_key}
+                    ingested += 1
 
-    scores, scores_sha = github_load_json(SCORES_PATH, {})
-    users, users_sha = github_load_json(USERS_PATH, {})
-
-    async for msg in ch.history(limit=messages):
-        if msg.author.bot or not msg.content:
-            continue
-
-        match = SCORE_REGEX.search(msg.content)
-        if not match:
-            continue
-
-        scanned += 1
-        score = int(match.group(1))
-
-        if score > MAX_SCORE:
-            skipped += 1
-            await react_safe(msg, em.get("too_high", "❌"), "❌")
-            continue
-
-        msg_time_uk = msg.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(UK_TZ)
-        date_key = today_key(msg_time_uk)
-        uid = str(msg.author.id)
-
-        if not isinstance(scores, dict):
-            scores = {}
-        scores.setdefault(date_key, {})
-        day_bucket = scores[date_key]
-
-        if uid in day_bucket:
-            skipped += 1
-            continue
-
-        user = users.setdefault(uid, {
-            "total_points": 0, 
-            "days_played": 0, 
-            "best_streak": 0,
-            "personal_best": {"score": 0, "date": "N/A"}
-        })
-        user["days_played"] += 1
-        user["total_points"] += score
-
-        day_bucket[uid] = {"score": score, "updated_at": msg_time_uk.isoformat()}
-        
-        # Silent PB update during rescan
-        if score > user.get("personal_best", {}).get("score", 0):
-            user["personal_best"] = {"score": score, "date": date_key}
-
-        ingested += 1
-        await react_safe(msg, em.get("rescan_ingested", "🔁"), "🔁")
-
-    github_save_json(SCORES_PATH, scores, scores_sha, f"MapTap: rescan last {messages} messages")
-    github_save_json(USERS_PATH, users, users_sha, "MapTap: rescan user stats")
-
-    await interaction.followup.send(
-        "✅ **Rescan complete**\n"
-        f"• Matches found: **{scanned}**\n"
-        f"• Newly ingested: **{ingested}**\n"
-        f"• Skipped: **{skipped}**",
-        ephemeral=True
-    )
-
+    github_save_json(SCORES_PATH, scores, s_sha, "Rescan: Syncing history")
+    github_save_json(USERS_PATH, users, u_sha, "Rescan: Updating PBs from data")
+    
+    await interaction.followup.send(f"✅ Sync complete! Historical PBs have been calculated from your JSON and {ingested} new scores were found in chat.")
 # =====================================================
 # SCHEDULED ACTIONS
 # =====================================================
