@@ -330,8 +330,46 @@ class MapTapBot(discord.Client):
     async def setup_hook(self):
         try:
             await self.tree.sync()
+            self.scheduler_tick.start()
         except Exception as e:
             print("Command sync failed:", e)
+
+    @tasks.loop(minutes=1)
+    async def scheduler_tick(self):
+        settings, sha = load_settings()
+        if not settings.get("enabled", True):
+            return
+
+        now = datetime.now(UK_TZ)
+        now_hm = now.strftime("%H:%M")
+        today = today_key(now)
+        
+        times = settings.get("times", {})
+        last_run = settings.get("last_run", {})
+
+        # Daily Post
+        if settings.get("daily_post_enabled") and now_hm == times.get("daily_post") and last_run.get("daily_post") != today:
+            await do_daily_post(settings)
+            settings["last_run"]["daily_post"] = today
+            save_settings(settings, sha, "MapTap: auto daily post")
+
+        # Daily Scoreboard
+        if settings.get("daily_scoreboard_enabled") and now_hm == times.get("daily_scoreboard") and last_run.get("daily_scoreboard") != today:
+            await do_daily_scoreboard(settings)
+            settings["last_run"]["daily_scoreboard"] = today
+            save_settings(settings, sha, "MapTap: auto daily scoreboard")
+
+        # Weekly Roundup (Sundays)
+        if settings.get("weekly_roundup_enabled") and now.weekday() == 6 and now_hm == times.get("weekly_roundup") and last_run.get("weekly_roundup") != today:
+            await do_weekly_roundup(settings)
+            settings["last_run"]["weekly_roundup"] = today
+            save_settings(settings, sha, "MapTap: auto weekly roundup")
+
+        # Rivalry Alerts (Saturdays)
+        if settings.get("rivalry_enabled") and now.weekday() == 5 and now_hm == times.get("rivalry") and last_run.get("rivalry") != today:
+            await do_rivalry_alert(settings)
+            settings["last_run"]["rivalry"] = today
+            save_settings(settings, sha, "MapTap: auto rivalry alert")
 
 client = MapTapBot()
 
@@ -553,8 +591,9 @@ class MapTapSettingsView(discord.ui.View):
     async def toggle_rivalry(self, interaction: discord.Interaction, _):
         self.settings["rivalry_enabled"] = not bool(self.settings.get("rivalry_enabled", True))
         await self._save_refresh(interaction, "MapTap: toggle rivalry alerts")
+
 # =====================================================
-# SLASH COMMAND: /mymaptap
+# SLASH COMMAND: /mymaptap (UPDATED)
 # =====================================================
 @client.tree.command(name="mymaptap", description="View MapTap stats")
 @app_commands.describe(user="View stats for another user")
@@ -579,10 +618,22 @@ async def mymaptap(
     cur = calculate_current_streak(scores, user_id)
     avg = round(int(stats["total_points"]) / int(stats["days_played"]))
     rank, total_players = calculate_all_time_rank(users, user_id)
+    
+    # Feature 3: Personal Best Logic
+    pb_data = stats.get("personal_best", {"score": 0, "date": "N/A"})
+    pb_score = pb_data.get("score", 0)
+    pb_raw_date = pb_data.get("date", "N/A")
+    pb_date_display = "N/A"
+    if pb_raw_date != "N/A":
+        try:
+            pb_date_display = datetime.strptime(pb_raw_date, "%Y-%m-%d").strftime("%d/%m/%y")
+        except:
+            pb_date_display = pb_raw_date
 
     await interaction.response.send_message(
         f"🗺️ **MapTap Stats — {target.display_name}**\n\n"
         f"• Server Rank: 🏅 **#{rank} of {total_players}**\n"
+        f"• Personal Best: ⭐ **{pb_score}** ({pb_date_display})\n"
         f"• Total points: **{stats['total_points']}**\n"
         f"• Total Days played: **{stats['days_played']}**\n"
         f"• Average score: **{avg}**\n"
@@ -591,7 +642,6 @@ async def mymaptap(
         ephemeral=False
     )
     
-######maptapsettings####
 # =====================================================
 # SLASH COMMAND: /maptapsettings
 # =====================================================
@@ -617,10 +667,11 @@ async def maptapsettings(interaction: discord.Interaction):
     await interaction.response.send_message(
         embed=view._embed(),
         view=view,
-        ephemeral=False  # public panel (matches what you wanted earlier)
+        ephemeral=False
     )
+
 # =====================================================
-# SCORE INGESTION (message listener)
+# SCORE INGESTION (MESSAGE LISTENER) (UPDATED)
 # =====================================================
 @client.event
 async def on_message(message: discord.Message):
@@ -658,23 +709,42 @@ async def on_message(message: discord.Message):
     scores.setdefault(date_key, {})
     day_bucket = scores[date_key]
 
-    prev_entry = day_bucket.get(user_id)
-    user_stats = users.setdefault(user_id, {"total_points": 0, "days_played": 0, "best_streak": 0})
+    user_stats = users.setdefault(user_id, {
+        "total_points": 0, 
+        "days_played": 0, 
+        "best_streak": 0,
+        "personal_best": {"score": 0, "date": "N/A"}
+    })
+    
+    # State tracking for alerts
+    had_played_before = int(user_stats.get("days_played", 0)) > 0
+    old_pb = user_stats.get("personal_best", {}).get("score", 0)
 
-    if prev_entry and isinstance(prev_entry, dict) and "score" in prev_entry:
+    if user_id in day_bucket:
         try:
-            user_stats["total_points"] -= int(prev_entry["score"])
-        except Exception:
+            user_stats["total_points"] -= int(day_bucket[user_id]["score"])
+        except:
             pass
     else:
         user_stats["days_played"] += 1
 
     user_stats["total_points"] += score
-
     day_bucket[user_id] = {
         "score": score,
         "updated_at": msg_time_uk.isoformat()
     }
+
+    # Feature 1: Perfect Score Alert
+    if score >= 1000:
+        await message.reply(f"🎯 **PERFECT SCORE!** <@{user_id}> hit the maximum of 1000 points! Map Master! 🏆")
+
+    # Feature 2: PB Alert
+    if had_played_before and score > old_pb:
+        await message.reply(f"🚀 **New Personal Best!** <@{user_id}> just beat their previous record of {old_pb} with a **{score}**!")
+        user_stats["personal_best"] = {"score": score, "date": date_key}
+    elif not had_played_before:
+        # First time player, set the initial PB silently
+        user_stats["personal_best"] = {"score": score, "date": date_key}
 
     cur_streak = calculate_current_streak(scores, user_id)
     if cur_streak > int(user_stats.get("best_streak", 0)):
@@ -685,10 +755,8 @@ async def on_message(message: discord.Message):
 
     await react_safe(message, em.get("recorded", "🌏"), "✅")
 
-
-
 # =====================================================
-# SLASH COMMAND: /rescan (admin-only) — NO DUPLICATE REACTION
+# SLASH COMMAND: /rescan (ADMIN ONLY) (UPDATED)
 # =====================================================
 @client.tree.command(
     name="rescan",
@@ -757,16 +825,24 @@ async def rescan(
         scores.setdefault(date_key, {})
         day_bucket = scores[date_key]
 
-        # ✅ Silent duplicate skip (no reaction)
         if uid in day_bucket:
             skipped += 1
             continue
 
-        user = users.setdefault(uid, {"total_points": 0, "days_played": 0, "best_streak": 0})
+        user = users.setdefault(uid, {
+            "total_points": 0, 
+            "days_played": 0, 
+            "best_streak": 0,
+            "personal_best": {"score": 0, "date": "N/A"}
+        })
         user["days_played"] += 1
         user["total_points"] += score
 
         day_bucket[uid] = {"score": score, "updated_at": msg_time_uk.isoformat()}
+        
+        # Silent PB update during rescan
+        if score > user.get("personal_best", {}).get("score", 0):
+            user["personal_best"] = {"score": score, "date": date_key}
 
         ingested += 1
         await react_safe(msg, em.get("rescan_ingested", "🔁"), "🔁")
@@ -783,7 +859,7 @@ async def rescan(
     )
 
 # =====================================================
-# SCHEDULED ACTIONS (called by scheduler tick)
+# SCHEDULED ACTIONS
 # =====================================================
 async def do_daily_post(settings: Dict[str, Any]):
     ch = get_configured_channel(settings)
@@ -821,9 +897,6 @@ async def do_daily_scoreboard(settings: Dict[str, Any]):
 
 async def do_weekly_roundup(settings: Dict[str, Any]):
     now = datetime.now(UK_TZ)
-    if now.weekday() != 6:  # Sunday
-        return
-
     ch = get_configured_channel(settings)
     if not ch:
         return
@@ -861,116 +934,8 @@ async def do_rivalry_alert(settings: Dict[str, Any]):
     ch = get_configured_channel(settings)
     if not ch:
         return
+    await ch.send("🔥 **MapTap Rivalry Alert!** Only 24 hours left in the week! Check the ranks and secure your spot!")
 
-    scores, _ = github_load_json(SCORES_PATH, {})
-    if not isinstance(scores, dict):
-        return
-
-    now = datetime.now(UK_TZ)
-    mon = monday_of_week(now)
-    week_dates = [(mon + timedelta(days=i)).isoformat() for i in range(7)]
-
-    weekly_totals: Dict[str, int] = {}
-
-    for dkey in week_dates:
-        day = scores.get(dkey, {})
-        if not isinstance(day, dict):
-            continue
-        for uid, entry in day.items():
-            if not isinstance(entry, dict):
-                continue
-            weekly_totals[uid] = weekly_totals.get(uid, 0) + int(entry.get("score", 0))
-
-    # Require enough players
-    if len(weekly_totals) < 5:
-        return
-
-    leaderboard = sorted(weekly_totals.items(), key=lambda x: x[1], reverse=True)
-
-    for i in range(len(leaderboard) - 1):
-        uid_a, score_a = leaderboard[i]
-        uid_b, score_b = leaderboard[i + 1]
-
-        diff = score_a - score_b
-        if 0 < diff <= 15:
-            await ch.send(
-                "⚔️ **Rivalry Alert!**\n"
-                f"<@{uid_b}> is only **{diff} points** behind <@{uid_a}> this week…\n"
-                "One day can change everything! 👀"
-            )
-            return
-
-# =====================================================
-# SCHEDULER (runs every minute, uses settings times)
-# =====================================================
-@tasks.loop(minutes=1)
-async def scheduler_tick():
-    settings, sha = load_settings()
-
-    if not settings.get("enabled", True):
-        return
-
-    now = datetime.now(UK_TZ)
-    hhmm = now.strftime("%H:%M")
-    today = today_key(now)
-
-    times = settings.get("times", DEFAULT_SETTINGS["times"])
-    last_run = settings.get("last_run", DEFAULT_SETTINGS["last_run"])
-
-    fired = False
-
-    # Daily post
-    if settings.get("daily_post_enabled", True) and hhmm == times.get("daily_post", "00:00"):
-        if last_run.get("daily_post") != today:
-            await do_daily_post(settings)
-            settings["last_run"]["daily_post"] = today
-            fired = True
-
-    # Daily scoreboard
-    if settings.get("daily_scoreboard_enabled", True) and hhmm == times.get("daily_scoreboard", "23:30"):
-        if last_run.get("daily_scoreboard") != today:
-            await do_daily_scoreboard(settings)
-            settings["last_run"]["daily_scoreboard"] = today
-            fired = True
-
-    # Weekly roundup (Sunday only)
-    if settings.get("weekly_roundup_enabled", True) and hhmm == times.get("weekly_roundup", "23:45"):
-        if now.weekday() == 6 and last_run.get("weekly_roundup") != today:
-            await do_weekly_roundup(settings)
-            settings["last_run"]["weekly_roundup"] = today
-            fired = True
-            
-    # Rivalry alert (Saturday)
-    if settings.get("rivalry_enabled", True) and hhmm == times.get("rivalry", "14:00"):
-        if now.weekday() == 5 and last_run.get("rivalry") != today:  # Saturday
-            await do_rivalry_alert(settings)
-            settings["last_run"]["rivalry"] = today
-            fired = True
-
-    # Save settings ONLY if we fired something (prevents constant GitHub writes)
-    if fired:
-        try:
-            save_settings(settings, sha, f"MapTap: update last_run {today} {hhmm}")
-        except Exception as e:
-            print("Failed to save last_run:", e)
-
-# =====================================================
-# STARTUP
-# =====================================================
-@client.event
-async def on_ready():
-    print(f"✅ Logged in as {client.user} (MapTap)")
-    if not scheduler_tick.is_running():
-        scheduler_tick.start()
-
-# =====================================================
-# RUN
-# =====================================================
 if __name__ == "__main__":
-    if not TOKEN:
-        raise RuntimeError("Missing TOKEN env var")
-    if not GITHUB_TOKEN or not GITHUB_REPO:
-        raise RuntimeError("Missing GITHUB_TOKEN or GITHUB_REPO env vars")
-
-    Thread(target=run_web, daemon=True).start()
+    Thread(target=run_web).start()
     client.run(TOKEN)
