@@ -1,7 +1,7 @@
 {
   "enabled": true,
   "channel_id": 1450502064252784851,
-  "daily_post_enabled": false,
+  "daily_post_enabled": true,
   "daily_scoreboard_enabled": true,
   "weekly_roundup_enabled": true,
   "rivalry_enabled": true,
