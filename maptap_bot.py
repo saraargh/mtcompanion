@@ -1026,53 +1026,11 @@ async def do_rivalry_alert(settings: Dict[str, Any]):
         )
 
 
-# =====================================================
-# SCHEDULER LOOP (SINGLE)
-# =====================================================
-@tasks.loop(minutes=1)
-async def scheduler_tick():
-    settings, sha = load_settings()
-    if not settings.get("enabled", True):
-        return
-
-    alerts = settings["alerts"]
-    times = settings["times"]
-    last = settings["last_run"]
-
-    now = datetime.now(UK_TZ)
-    hm = now.strftime("%H:%M")
-    today = now.date().isoformat()
-
-    if alerts["daily_post_enabled"] and hm == times["daily_post"] and last["daily_post"] != today:
-        await do_daily_post(settings)
-        last["daily_post"] = today
-
-    if alerts["daily_scoreboard_enabled"] and hm == times["daily_scoreboard"] and last["daily_scoreboard"] != today:
-        await do_daily_scoreboard(settings)
-        last["daily_scoreboard"] = today
-
-    if alerts["weekly_roundup_enabled"] and now.weekday() == 6 and hm == times["weekly_roundup"] and last["weekly_roundup"] != today:
-        await do_weekly_roundup(settings)
-        last["weekly_roundup"] = today
-
-    if alerts["rivalry_enabled"] and now.weekday() == 5 and hm == times["rivalry"] and last["rivalry"] != today:
-        await do_rivalry_alert(settings)
-        last["rivalry"] = today
-
-    if alerts["monthly_leaderboard_enabled"] and now.day == 1 and hm == times["monthly_leaderboard"] and last["monthly_leaderboard"] != today:
-        await do_monthly_leaderboard(settings)
-        last["monthly_leaderboard"] = today
-
-    save_settings(settings, sha, "MapTap scheduler tick")
-
 
 # =====================================================
 # STARTUP (ONE CLIENT, ONE TREE)
 # =====================================================
 
-
-
-client = MapTapBot()
 
 if __name__ == "__main__":
     Thread(target=run_web, daemon=True).start()
