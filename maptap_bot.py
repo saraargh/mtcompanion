@@ -429,7 +429,10 @@ class ChannelSelect(discord.ui.ChannelSelect):
     async def callback(self, interaction: discord.Interaction):
         ch = self.values[0]
         self.parent_view.settings["channel_id"] = ch.id
-        await self.parent_view._save(interaction, "MapTap: update channel")
+        await self.parent_view.save_and_refresh(
+            interaction,
+            "MapTap: update channel",
+        )
 
 
 class AdminRoleSelect(discord.ui.RoleSelect):
@@ -443,7 +446,10 @@ class AdminRoleSelect(discord.ui.RoleSelect):
 
     async def callback(self, interaction: discord.Interaction):
         self.parent_view.settings["admin_role_ids"] = [r.id for r in self.values]
-        await self.parent_view._save(interaction, "MapTap: update admin roles")
+        await self.parent_view.save_and_refresh(
+            interaction,
+            "MapTap: update admin roles",
+        )
 
 # ---------- TIME MODAL ----------
 class TimeSettingsModal(discord.ui.Modal, title="MapTap Times (UK)"):
@@ -465,6 +471,7 @@ class TimeSettingsModal(discord.ui.Modal, title="MapTap Times (UK)"):
         self.monthly_leaderboard.default = t["monthly_leaderboard"]
 
     async def on_submit(self, interaction: discord.Interaction):
+        # validate times
         for v in (
             self.daily_post.value,
             self.daily_scoreboard.value,
@@ -474,6 +481,7 @@ class TimeSettingsModal(discord.ui.Modal, title="MapTap Times (UK)"):
         ):
             datetime.strptime(v, "%H:%M")
 
+        # save
         self.settings_view.settings["times"] = {
             "daily_post": self.daily_post.value,
             "daily_scoreboard": self.daily_scoreboard.value,
@@ -482,8 +490,10 @@ class TimeSettingsModal(discord.ui.Modal, title="MapTap Times (UK)"):
             "monthly_leaderboard": self.monthly_leaderboard.value,
         }
 
-        await self.view_ref._save(interaction, "MapTap: update times")
-
+        await self.settings_view.save_and_refresh(
+            interaction,
+            "MapTap: update times",
+        )
 
 # ---------- ALERTS VIEW ----------
 class ConfigureAlertsView(discord.ui.View):
@@ -586,15 +596,18 @@ class MapTapSettingsView(discord.ui.View):
         self.add_item(ChannelSelect(self))
         self.add_item(AdminRoleSelect(self))
 
+    # =====================
+    # EMBED
+    # =====================
     def embed(self) -> discord.Embed:
         a = self.settings["alerts"]
         t = self.settings["times"]
-    
+
         def yn(v: bool) -> str:
             return "✅" if v else "❌"
-    
+
         e = discord.Embed(title="🗺️ MapTap Settings", color=0xF1C40F)
-    
+
         e.add_field(
             name="Status",
             value=(
@@ -610,7 +623,7 @@ class MapTapSettingsView(discord.ui.View):
             ),
             inline=False,
         )
-    
+
         e.add_field(
             name="Times (UK)",
             value=(
@@ -622,10 +635,10 @@ class MapTapSettingsView(discord.ui.View):
             ),
             inline=False,
         )
-    
+
         channel = self.settings.get("channel_id")
         roles = self.settings.get("admin_role_ids", [])
-    
+
         e.add_field(
             name="Access",
             value=(
@@ -634,16 +647,41 @@ class MapTapSettingsView(discord.ui.View):
             ),
             inline=False,
         )
-    
+
         return e
-        
-    async def _save(self, interaction: discord.Interaction, msg: str):
+
+    # =====================
+    # SAVE + REFRESH
+    # =====================
+    async def save_and_refresh(self, interaction: discord.Interaction, msg: str):
         self.sha = save_settings(self.settings, self.sha, msg) or self.sha
         await interaction.response.edit_message(
             embed=self.embed(),
             view=self,
-           )
-    
+        )
+
+    # =====================
+    # BUTTONS
+    # =====================
+    @discord.ui.button(label="Toggle bot", style=discord.ButtonStyle.secondary)
+    async def toggle(self, interaction, _):
+        self.settings["enabled"] = not self.settings["enabled"]
+        await self.save_and_refresh(interaction, "MapTap toggle bot")
+
+    @discord.ui.button(label="Edit times", style=discord.ButtonStyle.primary)
+    async def edit_times(self, interaction, _):
+        await interaction.response.send_modal(TimeSettingsModal(self))
+
+    @discord.ui.button(label="Configure alerts", style=discord.ButtonStyle.primary)
+    async def configure_alerts(self, interaction, _):
+        await interaction.response.edit_message(
+            embed=discord.Embed(title="Configure alerts"),
+            view=ConfigureAlertsView(self),
+        )
+
+    @discord.ui.button(label="Reset data", style=discord.ButtonStyle.danger)
+    async def reset(self, interaction, _):
+        await interaction.response.send_modal(ResetPasswordModal(self))
     # ---------- BUTTONS ----------
     @discord.ui.button(label="Toggle bot", style=discord.ButtonStyle.secondary)
     async def toggle(self, interaction, _):
@@ -656,7 +694,7 @@ class MapTapSettingsView(discord.ui.View):
 
     @discord.ui.button(label="Configure alerts", style=discord.ButtonStyle.primary)
     async def configure_alerts(self, interaction, _):
-        await interaction.response.send_message(
+        await interaction.response.edit_message(
             embed=discord.Embed(title="Configure alerts"),
             view=ConfigureAlertsView(self),
         )
@@ -806,7 +844,7 @@ async def on_message(message: discord.Message):
     old_pb = users[uid]["personal_best"]["score"]
 
     if score > old_pb:
-    users[uid]["personal_best"] = {"score": score, "date": dkey}
+        users[uid]["personal_best"] = {"score": score, "date": dkey}
 
         if settings["alerts"]["pb_messages_enabled"] and old_pb > 0:
             await message.channel.send(
