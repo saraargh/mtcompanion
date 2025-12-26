@@ -309,12 +309,6 @@ def compute_period_rows(scores: Dict[str, Any], start_d: Optional[date], end_d: 
             totals[uid]["days"] += 1
     return totals
 
-def build_leaderboard_embed(
-    guild: Optional[discord.Guild],
-    scope_value: str,
-    settings: Dict[str, Any],
-    users: Dict[str, Any],
-    scores: Dict[str]
     
 # =====================================================
 # DISCORD CLIENT
