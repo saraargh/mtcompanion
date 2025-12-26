@@ -584,24 +584,26 @@ class MapTapSettingsView(discord.ui.View):
         self.settings = settings
         self.sha = sha
 
+    # ---------- EMBED ----------
     def _embed(self) -> discord.Embed:
         a = self.settings["alerts"]
         t = self.settings["times"]
-        em = self.settings["emojis"]
 
         e = discord.Embed(title="🗺️ MapTap Settings", color=0xF1C40F)
+
         e.add_field(
             name="Status",
             value=(
-                f"Bot: {'✅' if self.settings['enabled'] else '❌'}\n"
-                f"Daily post: {'✅' if a['daily_post_enabled'] else '❌'}\n"
-                f"Daily scoreboard: {'✅' if a['daily_scoreboard_enabled'] else '❌'}\n"
-                f"Weekly roundup: {'✅' if a['weekly_roundup_enabled'] else '❌'}\n"
-                f"Rivalry: {'✅' if a['rivalry_enabled'] else '❌'}\n"
-                f"Monthly leaderboard: {'✅' if a['monthly_leaderboard_enabled'] else '❌'}"
+                f"Bot: {'On' if self.settings['enabled'] else 'Off'}\n"
+                f"Daily post: {'On' if a['daily_post_enabled'] else 'Off'}\n"
+                f"Daily scoreboard: {'On' if a['daily_scoreboard_enabled'] else 'Off'}\n"
+                f"Weekly roundup: {'On' if a['weekly_roundup_enabled'] else 'Off'}\n"
+                f"Rivalry alerts: {'On' if a['rivalry_enabled'] else 'Off'}\n"
+                f"Monthly leaderboard: {'On' if a['monthly_leaderboard_enabled'] else 'Off'}"
             ),
             inline=False,
         )
+
         e.add_field(
             name="Times (UK)",
             value=(
@@ -613,43 +615,41 @@ class MapTapSettingsView(discord.ui.View):
             ),
             inline=False,
         )
+
+        channel = self.settings.get("channel_id")
+        roles = self.settings.get("admin_role_ids", [])
+
         e.add_field(
-            name="Reactions",
+            name="Access",
             value=(
-                f"Recorded: {em['recorded']}\n"
-                f"Too high: {em['too_high']}\n"
-                f"Rescan: {em['rescan_ingested']}"
+                f"Channel: {f'<#{channel}>' if channel else 'Not set'}\n"
+                f"Admin roles: {', '.join(f'<@&{r}>' for r in roles) if roles else 'Admins only'}"
             ),
             inline=False,
         )
-        e.set_footer(text="Changes save immediately")
+
         return e
 
-    async def _save_refresh(self, interaction, msg):
-        new_sha = save_settings(self.settings, self.sha, msg)
-        self.sha = new_sha or self.sha
+    async def _save(self, interaction: discord.Interaction, msg: str):
+        self.sha = save_settings(self.settings, self.sha, msg) or self.sha
         await interaction.response.edit_message(embed=self._embed(), view=self)
 
+    # ---------- BUTTONS ----------
     @discord.ui.button(label="Edit times", style=discord.ButtonStyle.primary)
     async def edit_times(self, interaction, _):
         await interaction.response.send_modal(TimeSettingsModal(self))
 
     @discord.ui.button(label="Configure alerts", style=discord.ButtonStyle.primary)
     async def configure_alerts(self, interaction, _):
-        await interaction.response.send_message(
+        await interaction.response.edit_message(
             embed=discord.Embed(title="Configure alerts"),
             view=ConfigureAlertsView(self),
-            ephemeral=True,
         )
-
-    @discord.ui.button(label="Edit emojis", style=discord.ButtonStyle.secondary)
-    async def edit_emojis(self, interaction, _):
-        await interaction.response.send_modal(EmojiSettingsModal(self))
 
     @discord.ui.button(label="Toggle bot", style=discord.ButtonStyle.secondary)
     async def toggle_bot(self, interaction, _):
         self.settings["enabled"] = not self.settings["enabled"]
-        await self._save_refresh(interaction, "MapTap toggle bot")
+        await self._save(interaction, "MapTap toggle bot")
 
     @discord.ui.button(label="Reset data", style=discord.ButtonStyle.danger)
     async def reset_data(self, interaction, _):
@@ -877,22 +877,22 @@ async def mymaptap(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 ##settings##
-@client.tree.command(name="maptapsettings", description="Configure MapTap settings (admin only)")
+@client.tree.command(name="maptapsettings", description="Configure MapTap settings")
 async def maptapsettings(interaction: discord.Interaction):
     settings, sha = load_settings()
 
     if not has_admin_access(interaction.user, settings):
         await interaction.response.send_message(
-            "❌ You don’t have permission to configure MapTap.",
-            ephemeral=True
+            "You don’t have permission to configure MapTap.",
+            ephemeral=True,
         )
         return
 
     view = MapTapSettingsView(settings, sha)
+
     await interaction.response.send_message(
         embed=view._embed(),
         view=view,
-        ephemeral=True
     )
 
 
