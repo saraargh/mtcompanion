@@ -785,6 +785,25 @@ async def mymaptap(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=e)
 
+##settings##
+@client.tree.command(name="maptapsettings", description="Configure MapTap settings (admin only)")
+async def maptapsettings(interaction: discord.Interaction):
+    settings, sha = load_settings()
+
+    if not has_admin_access(interaction.user, settings):
+        await interaction.response.send_message(
+            "❌ You don’t have permission to configure MapTap.",
+            ephemeral=True
+        )
+        return
+
+    view = MapTapSettingsView(settings, sha)
+    await interaction.response.send_message(
+        embed=view._embed(),
+        view=view,
+        ephemeral=True
+    )
+
 
 # =====================================================
 # /leaderboard — SAME FORMAT (NO TXT, NO MATH)
