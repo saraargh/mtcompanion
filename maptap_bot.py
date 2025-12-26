@@ -1069,17 +1069,7 @@ async def scheduler_tick():
 # =====================================================
 # STARTUP (ONE CLIENT, ONE TREE)
 # =====================================================
-class MapTapBot(discord.Client):
-    def __init__(self):
-        intents = discord.Intents.default()
-        intents.members = True
-        intents.message_content = True
-        super().__init__(intents=intents)
-        self.tree = app_commands.CommandTree(self)
 
-    async def setup_hook(self):
-        await self.tree.sync()
-        scheduler_tick.start()
 
 
 client = MapTapBot()
