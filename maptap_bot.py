@@ -417,33 +417,33 @@ def yn(v: bool) -> str:
 
 
 # ---------- CHANNEL SELECT ----------
+
 class ChannelSelect(discord.ui.ChannelSelect):
-    def __init__(self, settings_view: "MapTapSettingsView"):
+    def __init__(self, parent):
+        self.parent_view = parent
         super().__init__(
             placeholder="Select MapTap channel…",
             channel_types=[discord.ChannelType.text],
         )
-        self.settings_view = settings_view
 
     async def callback(self, interaction: discord.Interaction):
-        self.settings_view.settings["channel_id"] = int(self.values[0].id)
-        await self.settings_view.save_and_refresh(interaction, "MapTap: update channel")
+        ch = self.values[0]
+        self.parent_view.settings["channel_id"] = ch.id
+        await self.parent_view._save(interaction, "MapTap: update channel")
 
 
-# ---------- ROLE SELECT ----------
 class AdminRoleSelect(discord.ui.RoleSelect):
-    def __init__(self, settings_view: "MapTapSettingsView"):
+    def __init__(self, parent):
+        self.parent_view = parent
         super().__init__(
             placeholder="Select admin roles…",
             min_values=0,
             max_values=10,
         )
-        self.settings_view = settings_view
 
     async def callback(self, interaction: discord.Interaction):
-        self.settings_view.settings["admin_role_ids"] = [r.id for r in self.values]
-        await self.settings_view.save_and_refresh(interaction, "MapTap: update admin roles")
-
+        self.parent_view.settings["admin_role_ids"] = [r.id for r in self.values]
+        await self.parent_view._save(interaction, "MapTap: update admin roles")
 
 # ---------- TIME MODAL ----------
 class TimeSettingsModal(discord.ui.Modal, title="MapTap Times (UK)"):
@@ -482,7 +482,7 @@ class TimeSettingsModal(discord.ui.Modal, title="MapTap Times (UK)"):
             "monthly_leaderboard": self.monthly_leaderboard.value,
         }
 
-        await self.settings_view.save_and_refresh(interaction, "MapTap: update times")
+        await self.view_ref._save(interaction, "MapTap: update times")
 
 
 # ---------- ALERTS VIEW ----------
@@ -582,6 +582,7 @@ class MapTapSettingsView(discord.ui.View):
         self.settings = settings
         self.sha = sha
 
+        # dropdowns
         self.add_item(ChannelSelect(self))
         self.add_item(AdminRoleSelect(self))
 
@@ -635,10 +636,14 @@ class MapTapSettingsView(discord.ui.View):
         )
     
         return e
+        
+        async def _save(self, interaction: discord.Interaction, msg: str):
+            self.sha = save_settings(self.settings, self.sha, msg) or self.sha
+            await interaction.response.edit_message(
+                embed=self.embed(),
+                view=self,
+            )
     
-    async def save_and_refresh(self, interaction: discord.Interaction, msg: str):
-        self.sha = save_settings(self.settings, self.sha, msg) or self.sha
-        await interaction.response.edit_message(embed=self.embed(), view=self)
 
     # ---------- BUTTONS ----------
     @discord.ui.button(label="Toggle bot", style=discord.ButtonStyle.secondary)
@@ -651,8 +656,8 @@ class MapTapSettingsView(discord.ui.View):
         await interaction.response.send_modal(TimeSettingsModal(self))
 
     @discord.ui.button(label="Configure alerts", style=discord.ButtonStyle.primary)
-    async def alerts(self, interaction, _):
-        await interaction.response.edit_message(
+    async def configure_alerts(self, interaction, _):
+        await interaction.response.send_message(
             embed=discord.Embed(title="Configure alerts"),
             view=ConfigureAlertsView(self),
         )
