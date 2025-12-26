@@ -423,56 +423,56 @@ class MapTapSettingsView(discord.ui.View):
 
     # ---------- EMBED ----------
     def _embed(self) -> discord.Embed:
-    a = self.settings["alerts"]
-    t = self.settings["times"]
-
-    def onoff(v: bool) -> str:
-        return "✅" if v else "❌"
-
-    e = discord.Embed(title="🗺️ MapTap Settings", color=0xF1C40F)
-
-    e.add_field(
-        name="Status",
-        value=(
-            f"Bot enabled: {onoff(self.settings['enabled'])}\n"
-            f"Daily post: {onoff(a['daily_post_enabled'])}\n"
-            f"Daily scoreboard: {onoff(a['daily_scoreboard_enabled'])}\n"
-            f"Weekly roundup: {onoff(a['weekly_roundup_enabled'])}\n"
-            f"Rivalry alerts: {onoff(a['rivalry_enabled'])}\n"
-            f"Monthly leaderboard: {onoff(a['monthly_leaderboard_enabled'])}\n"
-            f"Zero-score roasts: {onoff(a['zero_score_roasts_enabled'])}\n"
-            f"Personal best messages: {onoff(a['pb_messages_enabled'])}\n"
-            f"Perfect score messages: {onoff(a['perfect_score_enabled'])}"
-        ),
-        inline=False,
-    )
-
-    e.add_field(
-        name="Times (UK)",
-        value=(
-            f"Daily post: {t['daily_post']}\n"
-            f"Daily scoreboard: {t['daily_scoreboard']}\n"
-            f"Weekly roundup: {t['weekly_roundup']}\n"
-            f"Rivalry: {t['rivalry']}\n"
-            f"Monthly leaderboard: {t['monthly_leaderboard']}"
-        ),
-        inline=False,
-    )
-
-    channel = self.settings.get("channel_id")
-    roles = self.settings.get("admin_role_ids", [])
-
-    e.add_field(
-        name="Access",
-        value=(
-            f"Channel: {f'<#{channel}>' if channel else 'Not set'}\n"
-            f"Admin roles: {', '.join(f'<@&{r}>' for r in roles) if roles else 'Admins only'}"
-        ),
-        inline=False,
-    )
-
-    return e
-
+        a = self.settings["alerts"]
+        t = self.settings["times"]
+        
+        def onoff(v: bool) -> str:
+            return "✅" if v else "❌"
+    
+        e = discord.Embed(title="🗺️ MapTap Settings", color=0xF1C40F)
+    
+        e.add_field(
+            name="Status",
+            value=(
+                f"Bot enabled: {onoff(self.settings['enabled'])}\n"
+                f"Daily post: {onoff(a['daily_post_enabled'])}\n"
+                f"Daily scoreboard: {onoff(a['daily_scoreboard_enabled'])}\n"
+                f"Weekly roundup: {onoff(a['weekly_roundup_enabled'])}\n"
+                f"Rivalry alerts: {onoff(a['rivalry_enabled'])}\n"
+                f"Monthly leaderboard: {onoff(a['monthly_leaderboard_enabled'])}\n"
+                f"Zero-score roasts: {onoff(a['zero_score_roasts_enabled'])}\n"
+                f"Personal best messages: {onoff(a['pb_messages_enabled'])}\n"
+                f"Perfect score messages: {onoff(a['perfect_score_enabled'])}"
+            ),
+            inline=False,
+        )
+    
+        e.add_field(
+            name="Times (UK)",
+            value=(
+                f"Daily post: {t['daily_post']}\n"
+                f"Daily scoreboard: {t['daily_scoreboard']}\n"
+                f"Weekly roundup: {t['weekly_roundup']}\n"
+                f"Rivalry: {t['rivalry']}\n"
+                f"Monthly leaderboard: {t['monthly_leaderboard']}"
+            ),
+            inline=False,
+        )
+    
+        channel = self.settings.get("channel_id")
+        roles = self.settings.get("admin_role_ids", [])
+    
+        e.add_field(
+            name="Access",
+            value=(
+                f"Channel: {f'<#{channel}>' if channel else 'Not set'}\n"
+                f"Admin roles: {', '.join(f'<@&{r}>' for r in roles) if roles else 'Admins only'}"
+            ),
+            inline=False,
+        )
+    
+        return e
+    
     async def _save(self, interaction: discord.Interaction, msg: str):
         self.sha = save_settings(self.settings, self.sha, msg) or self.sha
         await interaction.response.edit_message(embed=self._embed(), view=self)
