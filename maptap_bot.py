@@ -902,27 +902,50 @@ async def maptapsettings(interaction: discord.Interaction):
     )
 
 
+# # =====================================================
+# /leaderboard — DROPDOWN VERSION (FINAL)
 # =====================================================
-# /leaderboard — SAME FORMAT (NO TXT, NO MATH)
-# =====================================================
+
 class LeaderboardSelect(discord.ui.Select):
-    def __init__(self):
+    def __init__(self, settings: Dict[str, Any]):
+        self.settings = settings
+
         options = [
             discord.SelectOption(label="This week", value="this_week"),
             discord.SelectOption(label="This month", value="this_month"),
             discord.SelectOption(label="All-time", value="all_time"),
         ]
+
         super().__init__(
             placeholder="Choose a leaderboard…",
             options=options,
+            min_values=1,
+            max_values=1,
         )
 
     async def callback(self, interaction: discord.Interaction):
         scope = self.values[0]
+
         users, _ = github_load_json(USERS_PATH, {})
         scores, _ = github_load_json(SCORES_PATH, {})
 
         today = datetime.now(UK_TZ).date()
+
+        # -------------------------
+        # Date range selection
+        # -------------------------
+        start_d = end_d = None
+
+        if scope == "this_week":
+            start_d = today - timedelta(days=today.weekday())
+            end_d = today
+        elif scope == "this_month":
+            start_d = today.replace(day=1)
+            end_d = today
+
+        # -------------------------
+        # Aggregate scores
+        # -------------------------
         totals: Dict[str, Dict[str, int]] = {}
 
         for dkey, bucket in scores.items():
@@ -931,57 +954,88 @@ class LeaderboardSelect(discord.ui.Select):
             except Exception:
                 continue
 
-            if scope == "this_week" and d < today - timedelta(days=today.weekday()):
+            if start_d and d < start_d:
                 continue
-            if scope == "this_month" and (d.year != today.year or d.month != today.month):
+            if end_d and d > end_d:
+                continue
+
+            if not isinstance(bucket, dict):
                 continue
 
             for uid, entry in bucket.items():
+                try:
+                    sc = int(entry["score"])
+                except Exception:
+                    continue
+
                 totals.setdefault(uid, {"total": 0, "days": 0})
-                totals[uid]["total"] += entry["score"]
+                totals[uid]["total"] += sc
                 totals[uid]["days"] += 1
 
-        rows = [
-            (uid, round(v["total"] / v["days"]))
-            for uid, v in totals.items()
-            if v["days"] >= DEFAULT_SETTINGS["minimum_days"].get(scope, 0)
-        ]
+        # -------------------------
+        # Build rows (avg-based)
+        # -------------------------
+        min_days = self.settings["minimum_days"].get(scope, 0)
+
+        rows: List[Tuple[str, int]] = []
+        for uid, data in totals.items():
+            if data["days"] < min_days:
+                continue
+            avg = round(data["total"] / data["days"])
+            rows.append((uid, avg))
+
         rows.sort(key=lambda x: x[1], reverse=True)
+        rows = rows[:10]
 
-        lines = [
-            f"{i}. <@{uid}> — avg {avg}"
-            for i, (uid, avg) in enumerate(rows[:10], 1)
-        ]
-
+        # -------------------------
+        # Build embed
+        # -------------------------
         embed = discord.Embed(
             title="🗺️ MapTap Leaderboard",
-            description=f"*{scope.replace('_',' ').title()}*",
+            description=f"*{scope.replace('_', ' ').title()}*",
             color=0x3498DB,
         )
-        embed.add_field(
-            name="Top Preview",
-            value="\n".join(lines) or "No data yet",
-            inline=False,
-        )
+
+        if not rows:
+            embed.add_field(
+                name="No data",
+                value="No eligible scores for this period.",
+                inline=False,
+            )
+        else:
+            lines = []
+            for i, (uid, avg) in enumerate(rows, start=1):
+                name = display_user(interaction.guild, uid)
+                lines.append(f"{i}. {name} — {avg}")
+
+            embed.add_field(
+                name="Top Players",
+                value="\n".join(lines),
+                inline=False,
+            )
+
+        embed.set_footer(text="All rankings are based on average score")
 
         await interaction.response.edit_message(embed=embed, view=self.view)
 
 
 class LeaderboardView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, settings: Dict[str, Any]):
         super().__init__(timeout=180)
-        self.add_item(LeaderboardSelect())
+        self.add_item(LeaderboardSelect(settings))
 
 
 @client.tree.command(name="leaderboard", description="View MapTap leaderboards")
 async def leaderboard(interaction: discord.Interaction):
+    settings, _ = load_settings()
+
     await interaction.response.send_message(
         embed=discord.Embed(
             title="🗺️ MapTap Leaderboard",
             description="Select a leaderboard to view",
             color=0x3498DB,
         ),
-        view=LeaderboardView(),
+        view=LeaderboardView(settings),
     )
 
 # =====================================================
