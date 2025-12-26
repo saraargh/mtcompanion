@@ -423,55 +423,55 @@ class MapTapSettingsView(discord.ui.View):
 
     # ---------- EMBED ----------
     def _embed(self) -> discord.Embed:
-        a = self.settings["alerts"]
-        t = self.settings["times"]
+    a = self.settings["alerts"]
+    t = self.settings["times"]
 
-        def yn(v): return "✅" if v else "❌"
+    def onoff(v: bool) -> str:
+        return "✅" if v else "❌"
 
-        e = discord.Embed(title="🗺️ MapTap Settings", color=0xF1C40F)
+    e = discord.Embed(title="🗺️ MapTap Settings", color=0xF1C40F)
 
-        e.add_field(
-            name="Status",
-            value=(
-                f"Bot enabled: {yn(self.settings['enabled'])}\n"
-                f"Daily post: {yn(a['daily_post_enabled'])}\n"
-                f"Daily scoreboard: {yn(a['daily_scoreboard_enabled'])}\n"
-                f"Weekly roundup: {yn(a['weekly_roundup_enabled'])}\n"
-                f"Rivalry alerts: {yn(a['rivalry_enabled'])}\n"
-                f"Monthly leaderboard: {yn(a['monthly_leaderboard_enabled'])}\n"
-                f"Zero-score roasts: {yn(a['zero_score_roasts_enabled'])}\n"
-                f"Personal best messages: {yn(a['pb_messages_enabled'])}\n"
-                f"Perfect score messages: {yn(a['perfect_score_enabled'])}"
-            ),
-            inline=False,
-        )
+    e.add_field(
+        name="Status",
+        value=(
+            f"Bot enabled: {onoff(self.settings['enabled'])}\n"
+            f"Daily post: {onoff(a['daily_post_enabled'])}\n"
+            f"Daily scoreboard: {onoff(a['daily_scoreboard_enabled'])}\n"
+            f"Weekly roundup: {onoff(a['weekly_roundup_enabled'])}\n"
+            f"Rivalry alerts: {onoff(a['rivalry_enabled'])}\n"
+            f"Monthly leaderboard: {onoff(a['monthly_leaderboard_enabled'])}\n"
+            f"Zero-score roasts: {onoff(a['zero_score_roasts_enabled'])}\n"
+            f"Personal best messages: {onoff(a['pb_messages_enabled'])}\n"
+            f"Perfect score messages: {onoff(a['perfect_score_enabled'])}"
+        ),
+        inline=False,
+    )
 
-        e.add_field(
-            name="Times (UK)",
-            value=(
-                f"Daily post: {t['daily_post']}\n"
-                f"Daily scoreboard: {t['daily_scoreboard']}\n"
-                f"Weekly roundup: {t['weekly_roundup']}\n"
-                f"Rivalry: {t['rivalry']}\n"
-                f"Monthly leaderboard: {t['monthly_leaderboard']}"
-            ),
-            inline=False,
-        )
+    e.add_field(
+        name="Times (UK)",
+        value=(
+            f"Daily post: {t['daily_post']}\n"
+            f"Daily scoreboard: {t['daily_scoreboard']}\n"
+            f"Weekly roundup: {t['weekly_roundup']}\n"
+            f"Rivalry: {t['rivalry']}\n"
+            f"Monthly leaderboard: {t['monthly_leaderboard']}"
+        ),
+        inline=False,
+    )
 
-        channel = self.settings.get("channel_id")
-        roles = self.settings.get("admin_role_ids", [])
+    channel = self.settings.get("channel_id")
+    roles = self.settings.get("admin_role_ids", [])
 
-        e.add_field(
-            name="Access",
-            value=(
-                f"Channel: {f'<#{channel}>' if channel else 'Not set'}\n"
-                f"Admin roles: {', '.join(f'<@&{r}>' for r in roles) if roles else 'Admins only'}"
-            ),
-            inline=False,
-        )
+    e.add_field(
+        name="Access",
+        value=(
+            f"Channel: {f'<#{channel}>' if channel else 'Not set'}\n"
+            f"Admin roles: {', '.join(f'<@&{r}>' for r in roles) if roles else 'Admins only'}"
+        ),
+        inline=False,
+    )
 
-        e.set_footer(text="Changes apply immediately")
-        return e
+    return e
 
     async def _save(self, interaction: discord.Interaction, msg: str):
         self.sha = save_settings(self.settings, self.sha, msg) or self.sha
@@ -492,37 +492,90 @@ class MapTapSettingsView(discord.ui.View):
         await interaction.response.send_modal(ResetPasswordModal(self))
 
 
+##cobfigure alerts##
+
+class ConfigureAlertsView(discord.ui.View):
+    def __init__(self, parent: "MapTapSettingsView"):
+        super().__init__(timeout=300)
+        self.parent = parent
+
+    def _toggle(self, key: str):
+        self.parent.settings["alerts"][key] = not self.parent.settings["alerts"][key]
+
+    async def _refresh(self, interaction: discord.Interaction, msg: str):
+        await self.parent._save(interaction, msg)
+
+    @discord.ui.button(label="Daily post", style=discord.ButtonStyle.secondary)
+    async def daily_post(self, interaction, _):
+        self._toggle("daily_post_enabled")
+        await self._refresh(interaction, "Toggle daily post")
+
+    @discord.ui.button(label="Daily scoreboard", style=discord.ButtonStyle.secondary)
+    async def daily_scoreboard(self, interaction, _):
+        self._toggle("daily_scoreboard_enabled")
+        await self._refresh(interaction, "Toggle daily scoreboard")
+
+    @discord.ui.button(label="Weekly roundup", style=discord.ButtonStyle.secondary)
+    async def weekly_roundup(self, interaction, _):
+        self._toggle("weekly_roundup_enabled")
+        await self._refresh(interaction, "Toggle weekly roundup")
+
+    @discord.ui.button(label="Rivalry alerts", style=discord.ButtonStyle.secondary)
+    async def rivalry(self, interaction, _):
+        self._toggle("rivalry_enabled")
+        await self._refresh(interaction, "Toggle rivalry alerts")
+
+    @discord.ui.button(label="Monthly leaderboard", style=discord.ButtonStyle.secondary)
+    async def monthly_lb(self, interaction, _):
+        self._toggle("monthly_leaderboard_enabled")
+        await self._refresh(interaction, "Toggle monthly leaderboard")
+
+    @discord.ui.button(label="Zero-score roasts", style=discord.ButtonStyle.secondary)
+    async def zero_roasts(self, interaction, _):
+        self._toggle("zero_score_roasts_enabled")
+        await self._refresh(interaction, "Toggle zero roasts")
+
+    @discord.ui.button(label="Personal bests", style=discord.ButtonStyle.secondary)
+    async def pb_msgs(self, interaction, _):
+        self._toggle("pb_messages_enabled")
+        await self._refresh(interaction, "Toggle PB messages")
+
+    @discord.ui.button(label="Perfect scores", style=discord.ButtonStyle.secondary)
+    async def perfect(self, interaction, _):
+        self._toggle("perfect_score_enabled")
+        await self._refresh(interaction, "Toggle perfect scores")
+
 # ---------- CHANNEL SELECT ----------
 class ChannelSelect(discord.ui.ChannelSelect):
-    def __init__(self, parent: MapTapSettingsView):
+    def __init__(self, settings_view):
         super().__init__(
             placeholder="Select MapTap channel…",
             channel_types=[discord.ChannelType.text],
             min_values=0,
             max_values=1,
         )
-        self.parent = parent
+        self.settings_view = settings_view
 
     async def callback(self, interaction: discord.Interaction):
-        self.parent.settings["channel_id"] = (
+        self.settings_view.settings["channel_id"] = (
             self.values[0].id if self.values else None
         )
-        await self.parent._save(interaction, "MapTap set channel")
-
+        await self.settings_view._save(interaction, "MapTap set channel")
 
 # ---------- ADMIN ROLE SELECT ----------
 class AdminRoleSelect(discord.ui.RoleSelect):
-    def __init__(self, parent: MapTapSettingsView):
+    def __init__(self, settings_view):
         super().__init__(
             placeholder="Select admin roles…",
             min_values=0,
             max_values=5,
         )
-        self.parent = parent
+        self.settings_view = settings_view
 
     async def callback(self, interaction: discord.Interaction):
-        self.parent.settings["admin_role_ids"] = [r.id for r in self.values]
-        await self.parent._save(interaction, "MapTap set admin roles")
+        self.settings_view.settings["admin_role_ids"] = [r.id for r in self.values]
+        await self.settings_view._save(interaction, "MapTap set admin roles")
+
 # =====================================================
 # SAFE REACTION
 # =====================================================
