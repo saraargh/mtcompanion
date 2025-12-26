@@ -1137,6 +1137,12 @@ async def rescan(
 
         users[uid]["total_points"] += score
         scores[dkey][uid] = {"score": score}
+        
+        await react_safe(
+            msg,
+            settings["emojis"]["rescan_ingested"],
+            "🔁",
+        )
 
         # PB rebuild
         if score > users[uid]["personal_best"]["score"]:
