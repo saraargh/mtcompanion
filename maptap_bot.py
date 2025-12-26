@@ -682,26 +682,6 @@ class MapTapSettingsView(discord.ui.View):
     @discord.ui.button(label="Reset data", style=discord.ButtonStyle.danger)
     async def reset(self, interaction, _):
         await interaction.response.send_modal(ResetPasswordModal(self))
-    # ---------- BUTTONS ----------
-    @discord.ui.button(label="Toggle bot", style=discord.ButtonStyle.secondary)
-    async def toggle(self, interaction, _):
-        self.settings["enabled"] = not self.settings["enabled"]
-        await self.save_and_refresh(interaction, "MapTap toggle bot")
-
-    @discord.ui.button(label="Edit times", style=discord.ButtonStyle.primary)
-    async def edit_times(self, interaction, _):
-        await interaction.response.send_modal(TimeSettingsModal(self))
-
-    @discord.ui.button(label="Configure alerts", style=discord.ButtonStyle.primary)
-    async def configure_alerts(self, interaction, _):
-        await interaction.response.edit_message(
-            embed=discord.Embed(title="Configure alerts"),
-            view=ConfigureAlertsView(self),
-        )
-
-    @discord.ui.button(label="Reset data", style=discord.ButtonStyle.danger)
-    async def reset(self, interaction, _):
-        await interaction.response.send_modal(ResetPasswordModal(self))
 
 # =====================================================
 # SAFE REACTION
