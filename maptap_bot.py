@@ -1067,41 +1067,36 @@ async def leaderboard(interaction: discord.Interaction):
 # =====================================================
 # /rescan — 
 # =====================================================
-
-@client.tree.command(name="rescan", description="Re-scan MapTap posts (admin)")
-@app_commands.describe(
-    days="How many days back to rescan (0 = all time)"
-)
-async def rescan(
-    interaction: discord.Interaction,
-    days: int = 0,
-):
+@client.tree.command(name="rescan", description="Re-scan ALL MapTap posts and rebuild stats (admin)")
+async def rescan(interaction: discord.Interaction):
     settings, _ = load_settings()
 
     if not has_admin_access(interaction.user, settings):
         await interaction.response.send_message("❌ No permission", ephemeral=True)
         return
 
-    ch = get_configured_channel(settings)
-    if not ch:
-        await interaction.response.send_message("❌ Channel not set", ephemeral=True)
+    channel = get_configured_channel(settings)
+    if not channel:
+        await interaction.response.send_message("❌ MapTap channel not set", ephemeral=True)
         return
 
-    since_date = None
-    if days > 0:
-        since_date = datetime.now(UK_TZ).date() - timedelta(days=days)
-
     await interaction.response.send_message(
-        "🔍 Rescanning **entire channel**… this may take a moment.",
+        "🔁 Full rescan started… this may take a moment.",
         ephemeral=True,
     )
 
-    scores, scores_sha = github_load_json(SCORES_PATH, {})
-    users, users_sha = github_load_json(USERS_PATH, {})
+    # -------------------------
+    # HARD RESET (REBUILD MODE)
+    # -------------------------
+    scores: Dict[str, Dict[str, Dict[str, int]]] = {}
+    users: Dict[str, Dict[str, Any]] = {}
 
-    async for msg in ch.history(limit=None, oldest_first=True):
+    ingested = 0
+
+    async for msg in channel.history(limit=None, oldest_first=True):
         if msg.author.bot:
             continue
+
         if not MAPTAP_HINT_REGEX.search(msg.content or ""):
             continue
 
@@ -1109,18 +1104,22 @@ async def rescan(
         if not m:
             continue
 
-        msg_time = msg.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(UK_TZ)
-        if since_date and msg_time.date() < since_date:
-            continue
-
         score = int(m.group(1))
         if score > MAX_SCORE:
             continue
 
+        msg_time = msg.created_at.replace(
+            tzinfo=ZoneInfo("UTC")
+        ).astimezone(UK_TZ)
+
         dkey = today_key(msg_time)
         uid = str(msg.author.id)
 
+        # ---- scores.json ----
         scores.setdefault(dkey, {})
+        scores[dkey][uid] = {"score": score}
+
+        # ---- users.json ----
         users.setdefault(uid, {
             "total_points": 0,
             "days_played": 0,
@@ -1128,30 +1127,151 @@ async def rescan(
             "personal_best": {"score": 0, "date": "N/A"},
         })
 
-        # overwrite same-day safely
-        if uid not in scores[dkey]:
-            users[uid]["days_played"] += 1
-        else:
-            users[uid]["total_points"] -= scores[dkey][uid]["score"]
-
         users[uid]["total_points"] += score
-        scores[dkey][uid] = {"score": score}
 
-        # rebuild PB
+        # personal best rebuild
         if score > users[uid]["personal_best"]["score"]:
-            users[uid]["personal_best"] = {"score": score, "date": dkey}
+            users[uid]["personal_best"] = {
+                "score": score,
+                "date": dkey,
+            }
 
-        # 🔁 react exactly like live ingest
+        ingested += 1
+
+        # react exactly like live ingest
         await react_safe(
             msg,
             settings["emojis"]["rescan_ingested"],
             "🔁",
         )
 
-    github_save_json(SCORES_PATH, scores, scores_sha, "MapTap full rescan (safe)")
-    github_save_json(USERS_PATH, users, users_sha, "MapTap full rescan (safe)")
+    # -------------------------
+    # REBUILD days_played SAFELY
+    # -------------------------
+    for uid in users:
+        played_days = {
+            dkey
+            for dkey, bucket in scores.items()
+            if uid in bucket
+        }
+        users[uid]["days_played"] = len(played_days)
 
-    await ch.send("🔁 **Full rescan complete — data rebuilt safely**")
+    # -------------------------
+    # SAVE CLEAN DATA
+    # -------------------------
+    github_save_json(SCORES_PATH, scores, None, "MapTap rescan rebuild scores")
+    github_save_json(USERS_PATH, users, None, "MapTap rescan rebuild users")
+
+    await channel.send(
+        f"✅ **Rescan complete**\n"
+        f"• Scores ingested: **{ingested}**\n"
+        f"• Players rebuilt: **{len(users)}**\n\n"
+        f"_All stats rebuilt from history_"
+    )
+    
+##repair##
+
+@client.tree.command(
+    name="repair_stats",
+    description="Repair MapTap user stats from existing score data (admin)"
+)
+async def repair_stats(interaction: discord.Interaction):
+    settings, _ = load_settings()
+
+    if not has_admin_access(interaction.user, settings):
+        await interaction.response.send_message("❌ No permission", ephemeral=True)
+        return
+
+    await interaction.response.send_message(
+        "🛠️ Repairing MapTap stats…",
+        ephemeral=True,
+    )
+
+    scores, scores_sha = github_load_json(SCORES_PATH, {})
+    users, users_sha = github_load_json(USERS_PATH, {})
+
+    rebuilt_users: Dict[str, Dict[str, Any]] = {}
+    affected = 0
+
+    # -------------------------
+    # Rebuild aggregates safely
+    # -------------------------
+    for dkey, bucket in scores.items():
+        if not isinstance(bucket, dict):
+            continue
+
+        for uid, entry in bucket.items():
+            try:
+                score = int(entry["score"])
+            except Exception:
+                continue
+
+            rebuilt_users.setdefault(uid, {
+                "total_points": 0,
+                "days_played": 0,
+                "best_streak": 0,
+                "personal_best": {"score": 0, "date": "N/A"},
+                "_played_days": set(),  # temp
+            })
+
+            rebuilt_users[uid]["total_points"] += score
+            rebuilt_users[uid]["_played_days"].add(dkey)
+
+            if score > rebuilt_users[uid]["personal_best"]["score"]:
+                rebuilt_users[uid]["personal_best"] = {
+                    "score": score,
+                    "date": dkey,
+                }
+
+    # -------------------------
+    # Finalise per-user stats
+    # -------------------------
+    for uid, data in rebuilt_users.items():
+        played_days = sorted(
+            datetime.strptime(d, "%Y-%m-%d").date()
+            for d in data["_played_days"]
+        )
+
+        # days played
+        data["days_played"] = len(played_days)
+
+        # best streak
+        streak = 0
+        best = 0
+        prev = None
+
+        for d in played_days:
+            if prev and d == prev + timedelta(days=1):
+                streak += 1
+            else:
+                streak = 1
+            best = max(best, streak)
+            prev = d
+
+        data["best_streak"] = best
+
+        # cleanup temp key
+        del data["_played_days"]
+
+        rebuilt_users[uid] = data
+        affected += 1
+
+    # -------------------------
+    # Save repaired users only
+    # -------------------------
+    github_save_json(
+        USERS_PATH,
+        rebuilt_users,
+        users_sha,
+        "MapTap repair stats (non-destructive)",
+    )
+
+    await interaction.followup.send(
+        f"✅ **Repair complete**\n"
+        f"• Users repaired: **{affected}**\n\n"
+        f"_Scores were not modified_",
+        ephemeral=False,
+    )
 
 # =====================================================
 # MESSAGE BUILDERS
