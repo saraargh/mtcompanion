@@ -1,12 +1,6 @@
 {
   "enabled": true,
   "channel_id": 1450502064252784851,
-  "daily_post_enabled": true,
-  "daily_scoreboard_enabled": true,
-  "weekly_roundup_enabled": true,
-  "rivalry_enabled": true,
-  "monthly_leaderboard_enabled": true,
-  "zero_score_roast_enabled": true,
   "admin_role_ids": [
     1413545658006110401,
     1404098545006546954,
@@ -14,6 +8,16 @@
     1404105470204969000,
     1404104881098195015
   ],
+  "alerts": {
+    "daily_post_enabled": true,
+    "daily_scoreboard_enabled": true,
+    "weekly_roundup_enabled": true,
+    "rivalry_enabled": true,
+    "monthly_leaderboard_enabled": true,
+    "zero_score_roasts_enabled": true,
+    "pb_messages_enabled": true,
+    "perfect_score_enabled": true
+  },
   "emojis": {
     "recorded": "<:maptapp:1451532874590191647>",
     "too_high": "\u274c",
@@ -27,6 +31,12 @@
     "rivalry": "14:00",
     "monthly_leaderboard": "00:10"
   },
+  "minimum_days": {
+    "this_week": 3,
+    "this_month": 10,
+    "all_time": 10,
+    "date_range": 0
+  },
   "last_run": {
     "daily_post": "2025-12-26",
     "daily_scoreboard": "2025-12-25",
@@ -34,6 +44,12 @@
     "rivalry": "2025-12-20",
     "monthly_leaderboard": null
   },
+  "daily_post_enabled": true,
+  "daily_scoreboard_enabled": true,
+  "weekly_roundup_enabled": true,
+  "rivalry_enabled": true,
+  "monthly_leaderboard_enabled": true,
+  "zero_score_roast_enabled": true,
   "roasts_enabled": true,
   "schedule": {
     "daily_post": "00:00",
