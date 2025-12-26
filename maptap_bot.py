@@ -657,7 +657,6 @@ class MapTapSettingsView(discord.ui.View):
     @discord.ui.button(label="Reset data", style=discord.ButtonStyle.danger)
     async def reset(self, interaction, _):
         await interaction.response.send_modal(ResetPasswordModal(self))
-roles")
 
 # =====================================================
 # SAFE REACTION
