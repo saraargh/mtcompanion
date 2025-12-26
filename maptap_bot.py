@@ -637,14 +637,13 @@ class MapTapSettingsView(discord.ui.View):
     
         return e
         
-        async def _save(self, interaction: discord.Interaction, msg: str):
-            self.sha = save_settings(self.settings, self.sha, msg) or self.sha
-            await interaction.response.edit_message(
-                embed=self.embed(),
-                view=self,
-            )
+    async def _save(self, interaction: discord.Interaction, msg: str):
+        self.sha = save_settings(self.settings, self.sha, msg) or self.sha
+        await interaction.response.edit_message(
+            embed=self.embed(),
+            view=self,
+           )
     
-
     # ---------- BUTTONS ----------
     @discord.ui.button(label="Toggle bot", style=discord.ButtonStyle.secondary)
     async def toggle(self, interaction, _):
@@ -805,15 +804,16 @@ async def on_message(message: discord.Message):
     
     # personal best
     old_pb = users[uid]["personal_best"]["score"]
-    if score > old_pb:
-        users[uid]["personal_best"] = {"score": score, "date": dkey}
 
-    if settings["alerts"]["pb_messages_enabled"] and old_pb > 0:
-        await message.channel.send(
-            f"🚀 **New Personal Best!**\n"
-            f"{message.author.mention} just beat their previous record of "
-            f"**{old_pb}** with a **{score}**!"
-        )
+    if score > old_pb:
+    users[uid]["personal_best"] = {"score": score, "date": dkey}
+
+        if settings["alerts"]["pb_messages_enabled"] and old_pb > 0:
+            await message.channel.send(
+                f"🚀 **New Personal Best!**\n"
+                f"{message.author.mention} just beat their previous record of "
+                f"**{old_pb}** with a **{score}**!"
+            )
 
     # streaks
     cur = calculate_current_streak(scores, uid)
@@ -1049,27 +1049,85 @@ async def leaderboard(interaction: discord.Interaction):
 # =====================================================
 # /rescan — DATE RANGE
 # =====================================================
-@client.tree.command(name="rescan", description="Re-scan MapTap posts by date range (admin)")
-async def rescan(interaction: discord.Interaction, start: str, end: str):
+@client.tree.command(name="rescan", description="Re-scan MapTap posts (admin)")
+@app_commands.describe(
+    days="How many days back to rescan",
+    limit="How many messages to scan (max 100)"
+)
+async def rescan(
+    interaction: discord.Interaction,
+    days: int,
+    limit: int = 50,
+):
     settings, _ = load_settings()
+
     if not has_admin_access(interaction.user, settings):
         await interaction.response.send_message("❌ No permission", ephemeral=True)
         return
 
-    try:
-        start_d = datetime.strptime(start, "%Y-%m-%d").date()
-        end_d = datetime.strptime(end, "%Y-%m-%d").date()
-    except Exception:
-        await interaction.response.send_message("❌ Use YYYY-MM-DD", ephemeral=True)
-        return
+    limit = min(max(limit, 1), 100)
+    since_date = datetime.now(UK_TZ).date() - timedelta(days=days)
 
     ch = get_configured_channel(settings)
     if not ch:
         await interaction.response.send_message("❌ Channel not set", ephemeral=True)
         return
 
-    await interaction.response.send_message(f"🔍 Rescanning {start} → {end}", ephemeral=True)
-    # (logic unchanged from previous working version)
+    await interaction.response.send_message(
+        f"🔍 Rescanning last **{limit}** messages (since {since_date})…",
+        ephemeral=True,
+    )
+
+    scores, scores_sha = github_load_json(SCORES_PATH, {})
+    users, users_sha = github_load_json(USERS_PATH, {})
+
+    # wipe affected days
+    for d in list(scores.keys()):
+        if datetime.strptime(d, "%Y-%m-%d").date() >= since_date:
+            scores.pop(d, None)
+
+    async for msg in ch.history(limit=limit, oldest_first=True):
+        if msg.author.bot:
+            continue
+        if not MAPTAP_HINT_REGEX.search(msg.content or ""):
+            continue
+
+        m = SCORE_REGEX.search(msg.content)
+        if not m:
+            continue
+
+        score = int(m.group(1))
+        if score > MAX_SCORE:
+            continue
+
+        msg_time = msg.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(UK_TZ)
+        dkey = today_key(msg_time)
+        uid = str(msg.author.id)
+
+        scores.setdefault(dkey, {})
+        users.setdefault(uid, {
+            "total_points": 0,
+            "days_played": 0,
+            "best_streak": 0,
+            "personal_best": {"score": 0, "date": "N/A"},
+        })
+
+        if uid not in scores[dkey]:
+            users[uid]["days_played"] += 1
+        else:
+            users[uid]["total_points"] -= scores[dkey][uid]["score"]
+
+        users[uid]["total_points"] += score
+        scores[dkey][uid] = {"score": score}
+
+        # PB rebuild
+        if score > users[uid]["personal_best"]["score"]:
+            users[uid]["personal_best"] = {"score": score, "date": dkey}
+
+    github_save_json(SCORES_PATH, scores, scores_sha, "MapTap rescan scores")
+    github_save_json(USERS_PATH, users, users_sha, "MapTap rescan users")
+
+    await ch.send(f"🔁 Rescan complete ({days} days, {limit} messages)")
 # =========================
 # MapTap Companion Bot (FULL FILE)
 # Chunk 5/5
