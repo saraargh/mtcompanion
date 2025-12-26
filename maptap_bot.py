@@ -103,8 +103,8 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     # Leaderboard minimum-day rules
     "minimum_days": {
         "this_week": 3,
-        "this_month": 10,
-        "all_time": 10,
+        "this_month": 7,
+        "all_time": 0,
         "date_range": 0
     },
 
@@ -181,9 +181,44 @@ def github_save_json(path: str, data: Any, sha: Optional[str], message: str) -> 
     return new_sha or sha or ""
     
 # =========================
-# MapTap Companion Bot (FULL FILE)
-# Chunk 2/5
+leaderboard helper
 # =========================
+
+def calculate_period_rank(
+    scores: Dict[str, Any],
+    user_id: str,
+    start_d: date,
+    end_d: date,
+) -> Tuple[Optional[int], int]:
+    totals = {}
+
+    for dkey, bucket in scores.items():
+        try:
+            d = datetime.strptime(dkey, "%Y-%m-%d").date()
+        except Exception:
+            continue
+
+        if d < start_d or d > end_d:
+            continue
+
+        for uid, entry in bucket.items():
+            totals.setdefault(uid, {"total": 0, "days": 0})
+            totals[uid]["total"] += entry["score"]
+            totals[uid]["days"] += 1
+
+    rows = [
+        (uid, round(v["total"] / v["days"]))
+        for uid, v in totals.items()
+        if v["days"] > 0
+    ]
+
+    rows.sort(key=lambda x: x[1], reverse=True)
+
+    for i, (uid, _) in enumerate(rows, start=1):
+        if uid == user_id:
+            return i, len(rows)
+
+    return None, len(rows)
 
 # =====================================================
 # SETTINGS HELPERS
@@ -877,11 +912,19 @@ async def mymaptap(interaction: discord.Interaction):
         color=0x2ECC71,
     )
 
+    today = datetime.now(UK_TZ).date()
+    week_start = today - timedelta(days=today.weekday())
+    week_rank, week_total = calculate_period_rank(
+        scores, uid, week_start, today
+    )
+    
+    
     embed.add_field(
         name="📊 Server Rankings",
         value=(
             f"🥇 All-Time: **#{rank} of {total_players}**\n"
-            f"🏁 This Week: see leaderboard"
+            f"🏁 This Week: "
+            f"{f'**#{week_rank} of {week_total}**' if week_rank else 'No rank yet'}"
         ),
         inline=False,
     )
