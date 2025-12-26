@@ -1065,17 +1065,16 @@ async def leaderboard(interaction: discord.Interaction):
     )
 
 # =====================================================
-# /rescan — DATE RANGE
+# /rescan — 
 # =====================================================
+
 @client.tree.command(name="rescan", description="Re-scan MapTap posts (admin)")
 @app_commands.describe(
-    days="How many days back to rescan",
-    limit="How many messages to scan (max 100)"
+    days="How many days back to rescan (0 = all time)"
 )
 async def rescan(
     interaction: discord.Interaction,
-    days: int,
-    limit: int = 50,
+    days: int = 0,
 ):
     settings, _ = load_settings()
 
@@ -1083,28 +1082,24 @@ async def rescan(
         await interaction.response.send_message("❌ No permission", ephemeral=True)
         return
 
-    limit = min(max(limit, 1), 100)
-    since_date = datetime.now(UK_TZ).date() - timedelta(days=days)
-
     ch = get_configured_channel(settings)
     if not ch:
         await interaction.response.send_message("❌ Channel not set", ephemeral=True)
         return
 
+    since_date = None
+    if days > 0:
+        since_date = datetime.now(UK_TZ).date() - timedelta(days=days)
+
     await interaction.response.send_message(
-        f"🔍 Rescanning last **{limit}** messages (since {since_date})…",
+        "🔍 Rescanning **entire channel**… this may take a moment.",
         ephemeral=True,
     )
 
     scores, scores_sha = github_load_json(SCORES_PATH, {})
     users, users_sha = github_load_json(USERS_PATH, {})
 
-    # wipe affected days
-    for d in list(scores.keys()):
-        if datetime.strptime(d, "%Y-%m-%d").date() >= since_date:
-            scores.pop(d, None)
-
-    async for msg in ch.history(limit=limit, oldest_first=True):
+    async for msg in ch.history(limit=None, oldest_first=True):
         if msg.author.bot:
             continue
         if not MAPTAP_HINT_REGEX.search(msg.content or ""):
@@ -1114,11 +1109,14 @@ async def rescan(
         if not m:
             continue
 
+        msg_time = msg.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(UK_TZ)
+        if since_date and msg_time.date() < since_date:
+            continue
+
         score = int(m.group(1))
         if score > MAX_SCORE:
             continue
 
-        msg_time = msg.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(UK_TZ)
         dkey = today_key(msg_time)
         uid = str(msg.author.id)
 
@@ -1130,6 +1128,7 @@ async def rescan(
             "personal_best": {"score": 0, "date": "N/A"},
         })
 
+        # overwrite same-day safely
         if uid not in scores[dkey]:
             users[uid]["days_played"] += 1
         else:
@@ -1137,25 +1136,22 @@ async def rescan(
 
         users[uid]["total_points"] += score
         scores[dkey][uid] = {"score": score}
-        
+
+        # rebuild PB
+        if score > users[uid]["personal_best"]["score"]:
+            users[uid]["personal_best"] = {"score": score, "date": dkey}
+
+        # 🔁 react exactly like live ingest
         await react_safe(
             msg,
             settings["emojis"]["rescan_ingested"],
             "🔁",
         )
 
-        # PB rebuild
-        if score > users[uid]["personal_best"]["score"]:
-            users[uid]["personal_best"] = {"score": score, "date": dkey}
+    github_save_json(SCORES_PATH, scores, scores_sha, "MapTap full rescan (safe)")
+    github_save_json(USERS_PATH, users, users_sha, "MapTap full rescan (safe)")
 
-    github_save_json(SCORES_PATH, scores, scores_sha, "MapTap rescan scores")
-    github_save_json(USERS_PATH, users, users_sha, "MapTap rescan users")
-
-    await ch.send(f"🔁 Rescan complete ({days} days, {limit} messages)")
-# =========================
-# MapTap Companion Bot (FULL FILE)
-# Chunk 5/5
-# =========================
+    await ch.send("🔁 **Full rescan complete — data rebuilt safely**")
 
 # =====================================================
 # MESSAGE BUILDERS
