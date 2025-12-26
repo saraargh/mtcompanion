@@ -7,7 +7,6 @@ import json
 import re
 import base64
 import requests
-import random
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from threading import Thread
@@ -24,9 +23,9 @@ from flask import Flask
 UK_TZ = ZoneInfo("Europe/London")
 
 TOKEN = os.getenv("TOKEN")
+
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-GITHUB_REPO = os.getenv("GITHUB_REPO")
-RESET_PASSWORD = os.getenv("RESET_PASSWORD", "CHANGEME") # Set this in Render
+GITHUB_REPO = os.getenv("GITHUB_REPO")  # e.g. "saraargh/the-pilot"
 
 SCORES_PATH = os.getenv("MAPTAP_SCORES_PATH", "data/maptap_scores.json")
 USERS_PATH = os.getenv("MAPTAP_USERS_PATH", "data/maptap_users.json")
@@ -36,271 +35,285 @@ MAPTAP_URL = os.getenv("MAPTAP_URL", "https://www.maptap.gg")
 CLEANUP_DAYS = int(os.getenv("MAPTAP_CLEANUP_DAYS", "69"))
 MAX_SCORE = int(os.getenv("MAPTAP_MAX_SCORE", "1000"))
 
+# Parse "Final score: 606" (case-insensitive)
 SCORE_REGEX = re.compile(r"Final\s*score:\s*(\d+)", re.IGNORECASE)
-ZERO_REGEX = re.compile(r"Final\s*score:\s*0(?!\d)", re.IGNORECASE)
 
 # =====================================================
-# MESSAGE VARIATIONS
-# =====================================================
-PB_MESSAGES = [
-    "🚀 **New Personal Best!** <@{uid}> just smashed their record with a **{score}**!",
-    "⭐ **Personal Best!** <@{uid}> is on fire with a new high of **{score}**!",
-    "📈 Growth! <@{uid}> just set a new PB of **{score}**. Keep it up!",
-    "🏆 A new record! <@{uid}> just beat their previous best with **{score}**!",
-    "✨ Legend status! <@{uid}> just reached a new personal peak of **{score}**!",
-    "🔥 Sizzling! <@{uid}> just updated their PB to **{score}**!",
-    "🏅 Elite! <@{uid}> just clocked a personal best of **{score}**!",
-    "💎 Solid work! <@{uid}> just hit a new PB of **{score}**!"
-]
-
-ROAST_MESSAGES = [
-    "💀 0 points? <@{uid}>, did you even open the map?",
-    "✈️ <@{uid}> just took a flight to nowhere. **Score: 0**.",
-    "📉 <@{uid}>, that was... impressively bad. **0 points**.",
-    "🔦 Can someone find <@{uid}>? They are clearly lost. **Score: 0**.",
-    "🛑 Stop the count! <@{uid}> just posted a **0**.",
-    "📉 <@{uid}> is currently a danger to himself and others in an aircraft. **Score: 0**.",
-    "🤡 <@{uid}>, the ground is that way ↓. **Score: 0**.",
-    "🙈 I’m blind! Oh wait, that’s just <@{uid}>'s score of **0**."
-]
-
-# =====================================================
-# DEFAULT SETTINGS
+# DEFAULT SETTINGS (GitHub-backed)
 # =====================================================
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "enabled": True,
-    "channel_id": None,
+    "channel_id": None,  # set via settings panel
     "daily_post_enabled": True,
     "daily_scoreboard_enabled": True,
     "weekly_roundup_enabled": True,
     "rivalry_enabled": True,
-    "roasts_enabled": True,
-    "admin_role_ids": [],
+    "admin_role_ids": [],  # set via settings panel
+
+    # Emoji defaults (configurable via /maptapsettings modal)
     "emojis": {
-        "recorded": "🌏",
-        "too_high": "❌",
-        "rescan_ingested": "🔁"
+        "recorded": "🌏",        # score registered
+        "too_high": "❌",        # score > MAX_SCORE
+        "rescan_ingested": "🔁", # rescan fixed / ingested
+        "config_issue": "⚠️"     # optional future use
     },
+
+    # Times are configurable (UK time, 24h HH:MM)
     "times": {
         "daily_post": "00:00",
         "daily_scoreboard": "23:30",
         "weekly_roundup": "23:45",
         "rivalry": "14:00"
+        
     },
+
+    # Prevent double-posting (updated automatically)
     "last_run": {
-        "daily_post": None,
-        "daily_scoreboard": None,
-        "weekly_roundup": None,
+        "daily_post": None,        # YYYY-MM-DD
+        "daily_scoreboard": None,  # YYYY-MM-DD
+        "weekly_roundup": None,    # YYYY-MM-DD (Sunday date)
         "rivalry": None
     }
 }
 
-HEADERS = {"Authorization": f"token {GITHUB_TOKEN}" if GITHUB_TOKEN else "", "Accept": "application/vnd.github.v3+json"}
+HEADERS = {
+    "Authorization": f"token {GITHUB_TOKEN}" if GITHUB_TOKEN else "",
+    "Accept": "application/vnd.github.v3+json",
+}
 
 # =====================================================
-# GITHUB & UTILS
+# KEEP ALIVE (Render)
 # =====================================================
-def _gh_url(path: str) -> str: return f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
+app = Flask("maptap")
+
+@app.get("/")
+def home():
+    return "MapTap bot running"
+
+def run_web():
+    port = int(os.getenv("PORT", "10000"))
+    app.run(host="0.0.0.0", port=port)
+
+# =====================================================
+# GITHUB CONTENTS API JSON HELPERS
+# =====================================================
+def _gh_url(path: str) -> str:
+    return f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
 
 def github_load_json(path: str, default: Any) -> Tuple[Any, Optional[str]]:
-    r = requests.get(_gh_url(path), headers=HEADERS, timeout=20)
-    if r.status_code == 404: return default, None
+    """
+    Returns (data, sha). If file not found, returns (default, None).
+    """
+    url = _gh_url(path)
+    r = requests.get(url, headers=HEADERS, timeout=20)
+
+    if r.status_code == 404:
+        return default, None
+
     r.raise_for_status()
     payload = r.json()
-    content = base64.b64decode(payload.get("content", "")).decode("utf-8") if payload.get("content") else ""
-    return (json.loads(content), payload.get("sha")) if content.strip() else (default, payload.get("sha"))
+    content_b64 = payload.get("content", "")
+    content = base64.b64decode(content_b64).decode("utf-8") if content_b64 else ""
+    if not content.strip():
+        return default, payload.get("sha")
+
+    return json.loads(content), payload.get("sha")
 
 def github_save_json(path: str, data: Any, sha: Optional[str], message: str) -> str:
+    """
+    Writes JSON to GitHub via Contents API. Returns new sha from response.
+    """
+    url = _gh_url(path)
     encoded = base64.b64encode(json.dumps(data, indent=2).encode("utf-8")).decode("utf-8")
-    body = {"message": message, "content": encoded}
-    if sha: body["sha"] = sha
-    r = requests.put(_gh_url(path), headers=HEADERS, json=body, timeout=20)
+
+    body: Dict[str, Any] = {
+        "message": message,
+        "content": encoded,
+    }
+    if sha:
+        body["sha"] = sha
+
+    r = requests.put(url, headers=HEADERS, json=body, timeout=20)
     r.raise_for_status()
-    return r.json().get("content", {}).get("sha", "")
+    new_sha = r.json().get("content", {}).get("sha")
+    return new_sha or sha or ""
+
+# =====================================================
+# SETTINGS HELPERS
+# =====================================================
+def _merge_nested(default: Dict[str, Any], incoming: Any) -> Dict[str, Any]:
+    merged = dict(default)
+    if isinstance(incoming, dict):
+        merged.update(incoming)
+    return merged
+
+def _normalize_hhmm(value: Any, fallback: str) -> str:
+    s = str(value).strip()
+    try:
+        datetime.strptime(s, "%H:%M")
+        return s
+    except Exception:
+        return fallback
 
 def load_settings() -> Tuple[Dict[str, Any], Optional[str]]:
     settings, sha = github_load_json(SETTINGS_PATH, DEFAULT_SETTINGS.copy())
+
     merged = DEFAULT_SETTINGS.copy()
-    if isinstance(settings, dict): merged.update(settings)
+    if isinstance(settings, dict):
+        merged.update(settings)
+
+    # Normalize types
+    if merged.get("channel_id") is not None:
+        try:
+            merged["channel_id"] = int(merged["channel_id"])
+        except Exception:
+            merged["channel_id"] = None
+
+    merged["admin_role_ids"] = [int(x) for x in merged.get("admin_role_ids", []) if str(x).isdigit()]
+
+    # Merge emojis safely
+    merged["emojis"] = _merge_nested(DEFAULT_SETTINGS["emojis"], merged.get("emojis"))
+
+    # Merge times safely + validate HH:MM
+    times_in = _merge_nested(DEFAULT_SETTINGS["times"], merged.get("times"))
+    merged["times"] = {
+        "daily_post": _normalize_hhmm(times_in.get("daily_post"), DEFAULT_SETTINGS["times"]["daily_post"]),
+        "daily_scoreboard": _normalize_hhmm(times_in.get("daily_scoreboard"), DEFAULT_SETTINGS["times"]["daily_scoreboard"]),
+        "weekly_roundup": _normalize_hhmm(times_in.get("weekly_roundup"), DEFAULT_SETTINGS["times"]["weekly_roundup"]),
+        "rivalry": _normalize_hhmm(times_in.get("rivalry"), DEFAULT_SETTINGS["times"]["rivalry"]),
+    }
+
+    # Merge last_run safely
+    merged["last_run"] = _merge_nested(DEFAULT_SETTINGS["last_run"], merged.get("last_run"))
+    if not isinstance(merged["last_run"], dict):
+        merged["last_run"] = DEFAULT_SETTINGS["last_run"].copy()
+
     return merged, sha
 
 def save_settings(settings: Dict[str, Any], sha: Optional[str], message: str) -> Optional[str]:
     return github_save_json(SETTINGS_PATH, settings, sha, message)
 
 def today_key(dt: Optional[datetime] = None) -> str:
-    return (dt or datetime.now(UK_TZ)).date().isoformat()
+    if dt is None:
+        dt = datetime.now(UK_TZ)
+    return dt.date().isoformat()
 
-# =====================================================
-# RANKING LOGIC (AVERAGE BASED)
-# =====================================================
-def get_rankings(users: Dict[str, Any], min_days: int = 1, filter_uids: Optional[List[str]] = None) -> List[Dict]:
-    """Sorts by Average, then Days Played as tiebreaker."""
-    board = []
+##rank help
+def calculate_all_time_rank(users: Dict[str, Any], user_id: str) -> Tuple[int, int]:
+    """
+    Returns (rank, total_players)
+    Rank is 1-based.
+    """
+    leaderboard = []
+
     for uid, data in users.items():
-        if filter_uids and uid not in filter_uids: continue
-        days = int(data.get("days_played", 0))
-        if days < min_days: continue
-        total = int(data.get("total_points", 0))
-        avg = round(total / days) if days > 0 else 0
-        board.append({"uid": uid, "avg": avg, "days": days, "total": total})
-    
-    board.sort(key=lambda x: (x["avg"], x["days"]), reverse=True)
-    return board
-
-def get_user_rank(uid: str, rankings: List[Dict]) -> Tuple[int, int]:
-    for idx, entry in enumerate(rankings, 1):
-        if entry["uid"] == uid: return idx, len(rankings)
-    return 0, len(rankings)
-
-# =====================================================
-# MODALS & VIEWS
-# =====================================================
-class PasswordResetModal(discord.ui.Modal, title="Security Check"):
-    password = discord.ui.TextInput(label="Enter Admin Reset Password", style=discord.TextStyle.short, required=True)
-    
-    async def on_submit(self, interaction: discord.Interaction):
-        if self.password.value != RESET_PASSWORD:
-            await interaction.response.send_message("❌ Incorrect password. Reset aborted.", ephemeral=True)
-            return
-        
-        # Perform Reset
-        empty_scores = {}
-        empty_users = {}
-        s_sha = github_load_json(SCORES_PATH, {})[1]
-        u_sha = github_load_json(USERS_PATH, {})[1]
-        
-        github_save_json(SCORES_PATH, empty_scores, s_sha, f"RESET by {interaction.user}")
-        github_save_json(USERS_PATH, empty_users, u_sha, f"RESET by {interaction.user}")
-        
-        await interaction.response.send_message(
-            f"⚠️ **MapTap Reset** — Admin **{interaction.user.display_name}** has reset all server scores.",
-            ephemeral=False
-        )
-
-class TimeSettingsModal(discord.ui.Modal, title="MapTap Times (UK)"):
-    daily_post = discord.ui.TextInput(label="Daily Post (HH:MM)", placeholder="00:00", max_length=5)
-    daily_board = discord.ui.TextInput(label="Daily Scoreboard (HH:MM)", placeholder="23:30", max_length=5)
-    weekly = discord.ui.TextInput(label="Weekly Roundup (HH:MM)", placeholder="23:45", max_length=5)
-    rivalry = discord.ui.TextInput(label="Rivalry Alert (HH:MM)", placeholder="14:00", max_length=5)
-
-    def __init__(self, view_ref):
-        super().__init__()
-        self.view_ref = view_ref
-        t = self.view_ref.settings.get("times", {})
-        self.daily_post.default = t.get("daily_post", "00:00")
-        self.daily_board.default = t.get("daily_scoreboard", "23:30")
-        self.weekly.default = t.get("weekly_roundup", "23:45")
-        self.rivalry.default = t.get("rivalry", "14:00")
-
-    async def on_submit(self, interaction: discord.Interaction):
         try:
-            for v in [self.daily_post.value, self.daily_board.value, self.weekly.value, self.rivalry.value]:
-                datetime.strptime(v, "%H:%M")
-        except:
-            return await interaction.response.send_message("❌ Invalid format.", ephemeral=True)
-        
-        self.view_ref.settings["times"] = {
-            "daily_post": self.daily_post.value,
-            "daily_scoreboard": self.daily_board.value,
-            "weekly_roundup": self.weekly.value,
-            "rivalry": self.rivalry.value
-        }
-        await self.view_ref._save_refresh(interaction, "MapTap: update times")
+            leaderboard.append((
+                uid,
+                int(data.get("total_points", 0)),
+                int(data.get("days_played", 0))
+            ))
+        except Exception:
+            continue
 
-class MapTapSettingsView(discord.ui.View):
-    def __init__(self, settings, sha):
-        super().__init__(timeout=300)
-        self.settings, self.sha = settings, sha
+    # Sort by total points desc, then days played desc
+    leaderboard.sort(key=lambda x: (x[1], x[2]), reverse=True)
 
-    def _embed(self):
-        c = self.settings.get('channel_id')
-        r = self.settings.get('admin_role_ids', [])
-        t = self.settings.get('times', {})
-        e = discord.Embed(title="🗺️ MapTap Settings", color=0xF1C40F)
-        e.description = f"**Channel:** <#{c}>\n**Roles:** {', '.join(f'<@&{rid}>' for rid in r) if r else 'Admin only'}"
-        
-        status = (f"Bot: {'✅' if self.settings.get('enabled') else '❌'}\n"
-                  f"Daily Post: {'✅' if self.settings.get('daily_post_enabled') else '❌'}\n"
-                  f"Daily Board: {'✅' if self.settings.get('daily_scoreboard_enabled') else '❌'}\n"
-                  f"Weekly: {'✅' if self.settings.get('weekly_roundup_enabled') else '❌'}\n"
-                  f"Roasts: {'✅' if self.settings.get('roasts_enabled') else '❌'}")
-        
-        times = f"Post: `{t.get('daily_post')}` | Board: `{t.get('daily_scoreboard')}` | Weekly: `{t.get('weekly_roundup')}`"
-        e.add_field(name="🧭 System Status", value=status, inline=False)
-        e.add_field(name="🕒 Times (UK)", value=times, inline=False)
-        return e
+    total_players = len(leaderboard)
 
-    async def _save_refresh(self, interaction, msg):
-        current, c_sha = load_settings()
-        current.update(self.settings)
-        new_sha = save_settings(current, c_sha, msg)
-        self.settings, self.sha = current, new_sha or c_sha
-        await interaction.response.edit_message(embed=self._embed(), view=self)
+    for idx, (uid, _, _) in enumerate(leaderboard, start=1):
+        if uid == user_id:
+            return idx, total_players
 
-    @discord.ui.select(cls=discord.ui.ChannelSelect, placeholder="Set Channel")
-    async def channel_select(self, interaction, select):
-        self.settings["channel_id"] = select.values[0].id
-        await self._save_refresh(interaction, "MapTap: channel")
+    return total_players, total_players
 
-    @discord.ui.button(label="Edit Times", style=discord.ButtonStyle.primary)
-    async def btn_times(self, interaction, _): await interaction.response.send_modal(TimeSettingsModal(self))
-
-    @discord.ui.button(label="Toggle Bot", style=discord.ButtonStyle.secondary)
-    async def btn_bot(self, interaction, _):
-        self.settings["enabled"] = not self.settings.get("enabled", True)
-        await self._save_refresh(interaction, "MapTap: toggle bot")
-
-    @discord.ui.button(label="Toggle Roasts", style=discord.ButtonStyle.secondary)
-    async def btn_roasts(self, interaction, _):
-        self.settings["roasts_enabled"] = not self.settings.get("roasts_enabled", True)
-        await self._save_refresh(interaction, "MapTap: toggle roasts")
-
-    @discord.ui.button(label="RESET SCORES", style=discord.ButtonStyle.danger)
-    async def btn_reset(self, interaction, _):
-        await interaction.response.send_modal(PasswordResetModal())
 
 # =====================================================
-# LEADERBOARD VIEW
+# SAFE REACTION HELPER (supports custom server emoji strings)
 # =====================================================
-class LeaderboardDropdown(discord.ui.Select):
-    def __init__(self, users, scores):
-        options = [
-            discord.SelectOption(label="This Week", description="Min 3 days played", value="week"),
-            discord.SelectOption(label="This Month", description="Min 10 days played", value="month"),
-            discord.SelectOption(label="All-Time", description="Min 10 days played", value="all")
-        ]
-        super().__init__(placeholder="Choose Timeframe", options=options)
-        self.users, self.scores = users, scores
+async def react_safe(msg: discord.Message, emoji: str, fallback: str):
+    try:
+        await msg.add_reaction(emoji)
+    except discord.HTTPException:
+        try:
+            await msg.add_reaction(fallback)
+        except Exception:
+            pass
 
-    async def callback(self, interaction: discord.Interaction):
-        mode = self.values[0]
-        now = datetime.now(UK_TZ)
-        
-        if mode == "week":
-            min_days, title = 3, "This Week"
-            start = (now - timedelta(days=now.weekday())).date()
-            uids = {uid for d, data in self.scores.items() if datetime.fromisoformat(d).date() >= start for uid in data}
-        elif mode == "month":
-            min_days, title = 10, "This Month"
-            uids = {uid for d, data in self.scores.items() if datetime.fromisoformat(d).month == now.month for uid in data}
-        else:
-            min_days, title, uids = 10, "All-Time", None
+# =====================================================
+# DATE / STATS HELPERS
+# =====================================================
+def pretty_day(date_key: str) -> str:
+    return datetime.strptime(date_key, "%Y-%m-%d").strftime("%A %d %B")
 
-        ranks = get_rankings(self.users, min_days, list(uids) if uids else None)
-        
-        embed = discord.Embed(title=f"🗺️ MapTap Leaderboard - {title}", color=0x3498DB)
-        if not ranks:
-            embed.description = "No one has met the minimum day requirements yet!"
-        else:
-            lines = [f"{i}. <@{r['uid']}> — **Avg: {r['avg']}** ({r['days']} days)" for i, r in enumerate(ranks[:15], 1)]
-            embed.description = "\n".join(lines)
-        
-        await interaction.response.edit_message(embed=embed)
+def monday_of_week(d: datetime) -> datetime.date:
+    return d.date() - timedelta(days=d.weekday())
 
-class LeaderboardView(discord.ui.View):
-    def __init__(self, users, scores):
-        super().__init__(timeout=60)
-        self.add_item(LeaderboardDropdown(users, scores))
+def cleanup_old_scores(scores: Dict[str, Any], keep_days: int) -> Dict[str, Any]:
+    cutoff = datetime.now(UK_TZ).date() - timedelta(days=keep_days)
+    cleaned: Dict[str, Any] = {}
+    for date_key, day in scores.items():
+        try:
+            day_date = datetime.strptime(date_key, "%Y-%m-%d").date()
+        except Exception:
+            continue
+        if day_date >= cutoff:
+            cleaned[date_key] = day
+    return cleaned
+
+def calculate_current_streak(scores: Dict[str, Any], user_id: str) -> int:
+    played_dates = []
+    for date_key, day in scores.items():
+        if isinstance(day, dict) and user_id in day:
+            try:
+                played_dates.append(datetime.strptime(date_key, "%Y-%m-%d").date())
+            except Exception:
+                pass
+
+    if not played_dates:
+        return 0
+
+    played_set = set(played_dates)
+    day = datetime.now(UK_TZ).date()
+    streak = 0
+    while day in played_set:
+        streak += 1
+        day -= timedelta(days=1)
+    return streak
+
+# =====================================================
+# EMBED / MESSAGE BUILDERS
+# =====================================================
+def build_daily_prompt() -> str:
+    return (
+        "🗺️ **Daily MapTap is live!**\n"
+        f"👉 {MAPTAP_URL}\n\n"
+        "Post your results **exactly as shared from the app** so I can track scores ✈️"
+    )
+
+def build_daily_scoreboard_text(date_key: str, sorted_rows: List[Tuple[str, int]]) -> str:
+    header = f"🗺️ **MapTap — Daily Scores**\n*{pretty_day(date_key)}*\n\n"
+    if not sorted_rows:
+        return header + "😶 No scores today."
+
+    lines = [f"{i}. <@{uid}> — **{score}**" for i, (uid, score) in enumerate(sorted_rows, start=1)]
+    footer = f"\n\n✈️ Players today: **{len(sorted_rows)}**"
+    return header + "\n".join(lines) + footer
+
+def build_weekly_roundup_text(mon: datetime.date, sun: datetime.date, sorted_rows: List[Tuple[str, int, int]]) -> str:
+    header = (
+        "🗺️ **MapTap — Weekly Round-Up**\n"
+        f"*Mon {mon.strftime('%d %b')} → Sun {sun.strftime('%d %b')}*\n\n"
+    )
+    if not sorted_rows:
+        return header + "😶 No scores this week."
+
+    lines = [
+        f"{i}. <@{uid}> — **{total} pts** ({days}/7 days)"
+        for i, (uid, total, days) in enumerate(sorted_rows, start=1)
+    ]
+    footer = f"\n\n✈️ Weekly players: **{len(sorted_rows)}**"
+    return header + "\n".join(lines) + footer
 
 # =====================================================
 # DISCORD CLIENT
@@ -315,171 +328,614 @@ class MapTapBot(discord.Client):
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
-        self.scheduler_tick.start()
-        await self.tree.sync()
+        try:
+            await self.tree.sync()
+            self.scheduler_tick.start()
+        except Exception as e:
+            print("Command sync failed:", e)
 
     @tasks.loop(minutes=1)
     async def scheduler_tick(self):
-        s, sha = load_settings()
-        if not s.get("enabled"): return
+        settings, sha = load_settings()
+        if not settings.get("enabled", True):
+            return
+
         now = datetime.now(UK_TZ)
-        now_hm, today = now.strftime("%H:%M"), today_key(now)
+        now_hm = now.strftime("%H:%M")
+        today = today_key(now)
         
-        # Scheduling Logic
-        t, lr = s.get("times", {}), s.get("last_run", {})
-        if now_hm == t.get("daily_post") and lr.get("daily_post") != today:
-            ch = self.get_channel(s.get("channel_id"))
-            if ch: await ch.send(build_daily_prompt())
-            s["last_run"]["daily_post"] = today
-            save_settings(s, sha, "Daily Post")
+        times = settings.get("times", {})
+        last_run = settings.get("last_run", {})
+
+        # Daily Post
+        if settings.get("daily_post_enabled") and now_hm == times.get("daily_post") and last_run.get("daily_post") != today:
+            await do_daily_post(settings)
+            settings["last_run"]["daily_post"] = today
+            save_settings(settings, sha, "MapTap: auto daily post")
+
+        # Daily Scoreboard
+        if settings.get("daily_scoreboard_enabled") and now_hm == times.get("daily_scoreboard") and last_run.get("daily_scoreboard") != today:
+            await do_daily_scoreboard(settings)
+            settings["last_run"]["daily_scoreboard"] = today
+            save_settings(settings, sha, "MapTap: auto daily scoreboard")
+
+        # Weekly Roundup (Sundays)
+        if settings.get("weekly_roundup_enabled") and now.weekday() == 6 and now_hm == times.get("weekly_roundup") and last_run.get("weekly_roundup") != today:
+            await do_weekly_roundup(settings)
+            settings["last_run"]["weekly_roundup"] = today
+            save_settings(settings, sha, "MapTap: auto weekly roundup")
+
+        # Rivalry Alerts (Saturdays)
+        if settings.get("rivalry_enabled") and now.weekday() == 5 and now_hm == times.get("rivalry") and last_run.get("rivalry") != today:
+            await do_rivalry_alert(settings)
+            settings["last_run"]["rivalry"] = today
+            save_settings(settings, sha, "MapTap: auto rivalry alert")
 
 client = MapTapBot()
 
 # =====================================================
-# COMMANDS
+# PERMISSIONS / CHANNEL
 # =====================================================
-@client.tree.command(name="mymaptap", description="View your personalized stats")
-async def mymaptap(interaction: discord.Interaction, user: Optional[discord.Member] = None):
+def has_admin_access(member: discord.Member, settings: Dict[str, Any]) -> bool:
+    if member.guild_permissions.administrator:
+        return True
+    allowed = settings.get("admin_role_ids", [])
+    if not allowed:
+        return False
+    return any(r.id in allowed for r in member.roles)
+
+def get_configured_channel(settings: Dict[str, Any]) -> Optional[discord.TextChannel]:
+    cid = settings.get("channel_id")
+    if not cid:
+        return None
+    return client.get_channel(int(cid))
+
+# =====================================================
+# SETTINGS PANEL VIEW + MODALS
+# =====================================================
+class EmojiSettingsModal(discord.ui.Modal, title="MapTap Reaction Emojis"):
+    recorded = discord.ui.TextInput(
+        label="Score recorded emoji",
+        placeholder="e.g. ✅ or <:maptapp:1451532874590191647>",
+        required=True,
+        max_length=64
+    )
+    too_high = discord.ui.TextInput(
+        label="Too high score emoji",
+        placeholder="e.g. ❌",
+        required=True,
+        max_length=64
+    )
+    rescan_ingested = discord.ui.TextInput(
+        label="Rescan ingested emoji",
+        placeholder="e.g. 🔁",
+        required=True,
+        max_length=64
+    )
+
+    def __init__(self, view_ref: "MapTapSettingsView"):
+        super().__init__()
+        self.view_ref = view_ref
+        em = self.view_ref.settings.get("emojis", {})
+        self.recorded.default = str(em.get("recorded", "🌏"))
+        self.too_high.default = str(em.get("too_high", "❌"))
+        self.rescan_ingested.default = str(em.get("rescan_ingested", "🔁"))
+
+    async def on_submit(self, interaction: discord.Interaction):
+        self.view_ref.settings.setdefault("emojis", {})
+        self.view_ref.settings["emojis"]["recorded"] = str(self.recorded.value).strip()
+        self.view_ref.settings["emojis"]["too_high"] = str(self.too_high.value).strip()
+        self.view_ref.settings["emojis"]["rescan_ingested"] = str(self.rescan_ingested.value).strip()
+        await self.view_ref._save_refresh(interaction, "MapTap: update reaction emojis")
+
+class TimeSettingsModal(discord.ui.Modal, title="MapTap Scheduled Times (UK)"):
+    daily_post = discord.ui.TextInput(
+        label="Daily post time (HH:MM)",
+        placeholder="00:00",
+        required=True,
+        max_length=5
+    )
+    daily_scoreboard = discord.ui.TextInput(
+        label="Daily scoreboard time (HH:MM)",
+        placeholder="23:30",
+        required=True,
+        max_length=5
+    )
+    weekly_roundup = discord.ui.TextInput(
+        label="Weekly roundup time (HH:MM) (Sunday)",
+        placeholder="23:45",
+        required=True,
+        max_length=5
+    )
+    
+    rivalry = discord.ui.TextInput(
+        label="Rivalry alert time (HH:MM) (Saturday)",
+        placeholder="14:00",
+        required=True,
+        max_length=5
+    )
+
+    def __init__(self, view_ref: "MapTapSettingsView"):
+        super().__init__()
+        self.view_ref = view_ref
+        t = self.view_ref.settings.get("times", {})
+        self.daily_post.default = str(t.get("daily_post", "00:00"))
+        self.daily_scoreboard.default = str(t.get("daily_scoreboard", "23:30"))
+        self.weekly_roundup.default = str(t.get("weekly_roundup", "23:45"))
+        self.rivalry.default = str(t.get("rivalry", "14:00"))
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # validate HH:MM
+        vals = {
+            "daily_post": str(self.daily_post.value).strip(),
+            "daily_scoreboard": str(self.daily_scoreboard.value).strip(),
+            "weekly_roundup": str(self.weekly_roundup.value).strip(),
+            "rivalry": str(self.rivalry.value).strip()
+        }
+        try:
+            for v in vals.values():
+                datetime.strptime(v, "%H:%M")
+        except Exception:
+            await interaction.response.send_message("❌ Invalid time. Use **HH:MM** (24h), e.g. **23:30**.", ephemeral=True)
+            return
+
+        self.view_ref.settings.setdefault("times", {})
+        self.view_ref.settings["times"].update(vals)
+        await self.view_ref._save_refresh(interaction, "MapTap: update scheduled times")
+
+class MapTapSettingsView(discord.ui.View):
+    def __init__(self, settings: Dict[str, Any], sha: Optional[str]):
+        super().__init__(timeout=300)
+        self.settings = settings
+        self.sha = sha
+
+    def _embed(self) -> discord.Embed:
+        channel_str = f"<#{self.settings['channel_id']}>" if self.settings.get("channel_id") else "Not set"
+        roles = self.settings.get("admin_role_ids", [])
+        roles_str = ", ".join(f"<@&{rid}>" for rid in roles) if roles else "Admins only"
+
+        em = self.settings.get("emojis", {})
+        emoji_block = (
+            f"Recorded: {em.get('recorded','🌏')}\n"
+            f"Too high: {em.get('too_high','❌')}\n"
+            f"Rescan ingested: {em.get('rescan_ingested','🔁')}"
+        )
+
+        t = self.settings.get("times", {})
+        times_block = (
+            f"Daily post: **{t.get('daily_post','00:00')}**\n"
+            f"Daily scoreboard: **{t.get('daily_scoreboard','23:30')}**\n"
+            f"Weekly roundup (Sundays): **{t.get('weekly_roundup','23:45')}**\n"
+            f"Rivalry alert (Saturdays): **{t.get('rivalry','14:00')}**"
+        )
+
+        e = discord.Embed(title="🗺️ MapTap Settings", color=0xF1C40F)
+        e.description = f"**Channel:** {channel_str}\n**Admin roles:** {roles_str}"
+
+        status_block = (
+        f"**Bot enabled:** {'✅' if self.settings.get('enabled') else '❌'}\n"
+        f"**Daily post:** {'✅' if self.settings.get('daily_post_enabled') else '❌'}\n"
+        f"**Daily scoreboard:** {'✅' if self.settings.get('daily_scoreboard_enabled') else '❌'}\n"
+        f"**Weekly roundup:** {'✅' if self.settings.get('weekly_roundup_enabled') else '❌'}\n"
+        f"**Rivalry alerts:** {'✅' if self.settings.get('rivalry_enabled') else '❌'}"
+        )
+        e.add_field(name="🧭 Status", value=status_block, inline=False)
+
+        e.add_field(name="🕒 Times (UK)", value=str(times_block), inline=False)
+        e.add_field(name="✨ Reactions", value=str(emoji_block), inline=False)
+
+        e.set_footer(text="Changes save to GitHub immediately.")
+        return e
+
+    async def _save_refresh(self, interaction: discord.Interaction, message: str):
+        current, current_sha = load_settings()
+        current.update(self.settings)
+        new_sha = save_settings(current, current_sha, message)
+        self.settings = current
+        self.sha = new_sha or current_sha
+        await interaction.response.edit_message(embed=self._embed(), view=self)
+
+    # ---- Channel selector
+    @discord.ui.select(
+        cls=discord.ui.ChannelSelect,
+        placeholder="Select the MapTap channel",
+        channel_types=[discord.ChannelType.text],
+        min_values=1,
+        max_values=1
+    )
+    async def channel_select(self, interaction: discord.Interaction, select: discord.ui.ChannelSelect):
+        self.settings["channel_id"] = select.values[0].id
+        await self._save_refresh(interaction, "MapTap: set channel")
+
+    # ---- Role selector
+    @discord.ui.select(
+        cls=discord.ui.RoleSelect,
+        placeholder="Select admin roles (optional)",
+        min_values=0,
+        max_values=10
+    )
+    async def role_select(self, interaction: discord.Interaction, select: discord.ui.RoleSelect):
+        self.settings["admin_role_ids"] = [r.id for r in select.values]
+        await self._save_refresh(interaction, "MapTap: set admin roles")
+
+    @discord.ui.button(label="Edit Reaction Emojis", style=discord.ButtonStyle.primary)
+    async def edit_emojis(self, interaction: discord.Interaction, _):
+        await interaction.response.send_modal(EmojiSettingsModal(self))
+
+    @discord.ui.button(label="Edit Times (UK)", style=discord.ButtonStyle.primary)
+    async def edit_times(self, interaction: discord.Interaction, _):
+        await interaction.response.send_modal(TimeSettingsModal(self))
+
+    @discord.ui.button(label="Toggle Bot Enabled", style=discord.ButtonStyle.secondary)
+    async def toggle_bot_enabled(self, interaction: discord.Interaction, _):
+        self.settings["enabled"] = not bool(self.settings.get("enabled", True))
+        await self._save_refresh(interaction, "MapTap: toggle enabled")
+
+    @discord.ui.button(label="Toggle Daily Post", style=discord.ButtonStyle.secondary)
+    async def toggle_daily_post(self, interaction: discord.Interaction, _):
+        self.settings["daily_post_enabled"] = not bool(self.settings.get("daily_post_enabled", True))
+        await self._save_refresh(interaction, "MapTap: toggle daily post")
+
+    @discord.ui.button(label="Toggle Daily Scoreboard", style=discord.ButtonStyle.secondary)
+    async def toggle_daily_board(self, interaction: discord.Interaction, _):
+        self.settings["daily_scoreboard_enabled"] = not bool(self.settings.get("daily_scoreboard_enabled", True))
+        await self._save_refresh(interaction, "MapTap: toggle daily scoreboard")
+
+    @discord.ui.button(label="Toggle Weekly Roundup", style=discord.ButtonStyle.secondary)
+    async def toggle_weekly(self, interaction: discord.Interaction, _):
+        self.settings["weekly_roundup_enabled"] = not bool(self.settings.get("weekly_roundup_enabled", True))
+        await self._save_refresh(interaction, "MapTap: toggle weekly roundup")
+
+
+    @discord.ui.button(label="Toggle Rivalry Alerts", style=discord.ButtonStyle.secondary)
+    async def toggle_rivalry(self, interaction: discord.Interaction, _):
+        self.settings["rivalry_enabled"] = not bool(self.settings.get("rivalry_enabled", True))
+        await self._save_refresh(interaction, "MapTap: toggle rivalry alerts")
+
+# =====================================================
+# SLASH COMMAND: /mymaptap (UPDATED)
+# =====================================================
+@client.tree.command(name="mymaptap", description="View MapTap stats")
+@app_commands.describe(user="View stats for another user")
+async def mymaptap(
+    interaction: discord.Interaction,
+    user: Optional[discord.Member] = None
+):
     users, _ = github_load_json(USERS_PATH, {})
     scores, _ = github_load_json(SCORES_PATH, {})
+
     target = user or interaction.user
-    uid = str(target.id)
-    stats = users.get(uid)
+    user_id = str(target.id)
+    stats = users.get(user_id)
 
-    if not stats or int(stats.get("days_played", 0)) == 0:
-        return await interaction.response.send_message("No scores found yet! Post a result to start tracking.")
+    if not stats or int(stats.get("days_played", 0)) <= 0:
+        await interaction.response.send_message(
+            f"{target.display_name} hasn’t recorded any MapTap scores yet 🗺️",
+            ephemeral=False
+        )
+        return
 
-    # Calculate Rankings
-    all_ranks = get_rankings(users, 10)
-    weekly_ranks = get_rankings(users, 3) # Simplified for context
-    
-    a_rank, a_total = get_user_rank(uid, all_ranks)
-    w_rank, w_total = get_user_rank(uid, weekly_ranks)
-    
-    pb = stats.get("personal_best", {"score": 0, "date": "N/A"})
+    cur = calculate_current_streak(scores, user_id)
     avg = round(int(stats["total_points"]) / int(stats["days_played"]))
+    rank, total_players = calculate_all_time_rank(users, user_id)
     
-    embed = discord.Embed(title=f"🗺️ MapTap Stats — {target.display_name}", color=0xF1C40F)
-    embed.add_field(name="📊 Server Rankings", value=f"• All-Time: **#{a_rank if a_rank else 'N/A'}** of {a_total}\n• This Week: **#{w_rank if w_rank else 'N/A'}** of {w_total}", inline=False)
-    embed.add_field(name="⭐ Personal Records", value=f"• Best Score: **{pb['score']}** ({pb['date']})\n• Best Streak: 🔥 {stats.get('best_streak',0)} days\n• Current: 🔥 {calculate_current_streak(scores, uid)} days", inline=False)
-    embed.add_field(name="📈 Overall Stats", value=f"• Total Points: {stats['total_points']}\n• Days Played: {stats['days_played']}\n• Average Score: **{avg}**", inline=False)
+    # Feature 3: Personal Best Logic
+    pb_data = stats.get("personal_best", {"score": 0, "date": "N/A"})
+    pb_score = pb_data.get("score", 0)
+    pb_raw_date = pb_data.get("date", "N/A")
+    pb_date_display = "N/A"
+    if pb_raw_date != "N/A":
+        try:
+            pb_date_display = datetime.strptime(pb_raw_date, "%Y-%m-%d").strftime("%d/%m/%y")
+        except:
+            pb_date_display = pb_raw_date
+
+    await interaction.response.send_message(
+        f"🗺️ **MapTap Stats — {target.display_name}**\n\n"
+        f"• Server Rank: 🏅 **#{rank} of {total_players}**\n"
+        f"• Personal Best: ⭐ **{pb_score}** ({pb_date_display})\n"
+        f"• Total points: **{stats['total_points']}**\n"
+        f"• Total Days played: **{stats['days_played']}**\n"
+        f"• Average score: **{avg}**\n"
+        f"• Current streak: 🔥 **{cur} days**\n"
+        f"• Best streak (all-time): 🏆 **{stats.get('best_streak', 0)} days**",
+        ephemeral=False
+    )
     
-    await interaction.response.send_message(embed=embed)
+# =====================================================
+# SLASH COMMAND: /maptapsettings
+# =====================================================
+@client.tree.command(name="maptapsettings", description="Configure MapTap bot settings")
+async def maptapsettings(interaction: discord.Interaction):
+    settings, sha = load_settings()
 
-@client.tree.command(name="leaderboard", description="View server rankings")
-async def leaderboard(interaction: discord.Interaction):
-    users, _ = github_load_json(USERS_PATH, {})
-    scores, _ = github_load_json(SCORES_PATH, {})
-    embed = discord.Embed(title="🗺️ MapTap Leaderboards", description="Select a timeframe below to see rankings (Based on Average Score).", color=0x3498DB)
-    await interaction.response.send_message(embed=embed, view=LeaderboardView(users, scores))
+    if not isinstance(interaction.user, discord.Member):
+        await interaction.response.send_message(
+            "❌ Use this in a server, not DMs.",
+            ephemeral=True
+        )
+        return
 
-@client.tree.command(name="maptapsettings", description="Admin settings")
-async def settings(interaction: discord.Interaction):
-    s, sha = load_settings()
-    if not has_admin_access(interaction.user, s): return await interaction.response.send_message("No permission.", ephemeral=True)
-    view = MapTapSettingsView(s, sha)
-    await interaction.response.send_message(embed=view._embed(), view=view)
+    if not has_admin_access(interaction.user, settings):
+        await interaction.response.send_message(
+            "❌ You don’t have permission to manage MapTap settings.",
+            ephemeral=True
+        )
+        return
+
+    view = MapTapSettingsView(settings, sha)
+    await interaction.response.send_message(
+        embed=view._embed(),
+        view=view,
+        ephemeral=False
+    )
 
 # =====================================================
-# INGESTION & ROASTS
+# SCORE INGESTION (MESSAGE LISTENER) (UPDATED)
 # =====================================================
 @client.event
 async def on_message(message: discord.Message):
-    if message.author.bot: return
-    s, _ = load_settings()
-    if not s.get("enabled") or message.channel.id != s.get("channel_id"): return
+    if message.author.bot:
+        return
 
-    # Score Detection
+    settings, _ = load_settings()
+    if not settings.get("enabled", True):
+        return
+
+    channel_id = settings.get("channel_id")
+    if not channel_id or message.channel.id != int(channel_id):
+        return
+
     m = SCORE_REGEX.search(message.content or "")
-    if not m: return
-    
+    if not m:
+        return
+
+    em = settings.get("emojis", DEFAULT_SETTINGS["emojis"])
+
     score = int(m.group(1))
-    if score > MAX_SCORE: return await message.add_reaction("❌")
+    if score > MAX_SCORE:
+        await react_safe(message, em.get("too_high", "❌"), "❌")
+        return
 
-    uid = str(message.author.id)
-    now_uk = message.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(UK_TZ)
-    date_key = today_key(now_uk)
-    
-    # Load Data
-    scores, s_sha = github_load_json(SCORES_PATH, {})
-    users, u_sha = github_load_json(USERS_PATH, {})
-    
-    day_bucket = scores.setdefault(date_key, {})
-    stats = users.setdefault(uid, {"total_points": 0, "days_played": 0, "best_streak": 0, "personal_best": {"score": 0, "date": "N/A"}})
-    
-    old_pb = stats.get("personal_best", {}).get("score", 0)
+    msg_time_uk = message.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(UK_TZ)
+    date_key = today_key(msg_time_uk)
+    user_id = str(message.author.id)
 
-    # Ingest
-    if uid not in day_bucket: stats["days_played"] += 1
-    else: stats["total_points"] -= int(day_bucket[uid]["score"])
-    
-    stats["total_points"] += score
-    day_bucket[uid] = {"score": score, "time": now_uk.isoformat()}
-    
-    # Logic: Roast for 0
-    if score == 0 and s.get("roasts_enabled"):
-        await message.reply(random.choice(ROAST_MESSAGES).format(uid=uid))
-    
-    # Logic: PB Beat
-    elif score > old_pb and stats["days_played"] > 1:
-        await message.reply(random.choice(PB_MESSAGES).format(uid=uid, score=score))
-        stats["personal_best"] = {"score": score, "date": date_key}
-    elif stats["days_played"] == 1:
-        stats["personal_best"] = {"score": score, "date": date_key}
+    scores, scores_sha = github_load_json(SCORES_PATH, {})
+    users, users_sha = github_load_json(USERS_PATH, {})
 
-    # Streak
-    cur = calculate_current_streak(scores, uid)
-    if cur > stats.get("best_streak", 0): stats["best_streak"] = cur
+    if not isinstance(scores, dict):
+        scores = {}
+    scores.setdefault(date_key, {})
+    day_bucket = scores[date_key]
 
-    github_save_json(SCORES_PATH, scores, s_sha, f"Score: {uid}")
-    github_save_json(USERS_PATH, users, u_sha, f"Stats: {uid}")
-    await message.add_reaction(s.get("emojis", {}).get("recorded", "🌏"))
+    user_stats = users.setdefault(user_id, {
+        "total_points": 0, 
+        "days_played": 0, 
+        "best_streak": 0,
+        "personal_best": {"score": 0, "date": "N/A"}
+    })
+    
+    # State tracking for alerts
+    had_played_before = int(user_stats.get("days_played", 0)) > 0
+    old_pb = user_stats.get("personal_best", {}).get("score", 0)
+
+    if user_id in day_bucket:
+        try:
+            user_stats["total_points"] -= int(day_bucket[user_id]["score"])
+        except:
+            pass
+    else:
+        user_stats["days_played"] += 1
+
+    user_stats["total_points"] += score
+    day_bucket[user_id] = {
+        "score": score,
+        "updated_at": msg_time_uk.isoformat()
+    }
+
+    # Feature 1: Perfect Score Alert
+    if score >= 1000:
+        await message.reply(f"🎯 **PERFECT SCORE!** <@{user_id}> hit the maximum of 1000 points! Map Master! 🏆")
+
+    # Feature 2: PB Alert
+    if had_played_before and score > old_pb:
+        await message.reply(f"🚀 **New Personal Best!** <@{user_id}> just beat their previous record of {old_pb} with a **{score}**!")
+        user_stats["personal_best"] = {"score": score, "date": date_key}
+    elif not had_played_before:
+        # First time player, set the initial PB silently
+        user_stats["personal_best"] = {"score": score, "date": date_key}
+
+    cur_streak = calculate_current_streak(scores, user_id)
+    if cur_streak > int(user_stats.get("best_streak", 0)):
+        user_stats["best_streak"] = cur_streak
+
+    github_save_json(SCORES_PATH, scores, scores_sha, f"MapTap: score update {date_key}")
+    github_save_json(USERS_PATH, users, users_sha, f"MapTap: user stats update {user_id}")
+
+    await react_safe(message, em.get("recorded", "🌏"), "✅")
 
 # =====================================================
-# HELPERS
+# SLASH COMMAND: /rescan (ADMIN ONLY) (UPDATED)
 # =====================================================
-def has_admin_access(m, s): return m.guild_permissions.administrator or any(r.id in s.get("admin_role_ids", []) for r in m.roles)
+@client.tree.command(
+    name="rescan",
+    description="Re-scan recent MapTap messages for missed scores (admin only)"
+)
+@app_commands.describe(
+    messages="How many recent messages to scan (max 50)"
+)
+async def rescan(
+    interaction: discord.Interaction,
+    messages: int = 10
+):
+    settings, _ = load_settings()
 
-def calculate_current_streak(scores, uid):
-    dates = {d for d, day in scores.items() if uid in day}
-    curr, count = datetime.now(UK_TZ).date(), 0
-    while curr.isoformat() in dates:
-        count += 1
-        curr -= timedelta(days=1)
-    return count
+    if not isinstance(interaction.user, discord.Member):
+        await interaction.response.send_message("❌ This command can only be used in a server.", ephemeral=True)
+        return
 
-def build_daily_prompt():
-    return f"🗺️ **Daily MapTap is live!**\n👉 {MAPTAP_URL}\n\nPost results exactly as shared to track scores! ✈️"
+    if not has_admin_access(interaction.user, settings):
+        await interaction.response.send_message("❌ You don’t have permission to run this.", ephemeral=True)
+        return
+
+    ch = get_configured_channel(settings)
+    if not ch:
+        await interaction.response.send_message("❌ MapTap channel is not configured.", ephemeral=True)
+        return
+
+    messages = max(1, min(messages, 50))
+
+    await interaction.response.send_message(
+        f"🔍 Scanning the last **{messages}** messages…",
+        ephemeral=True
+    )
+
+    em = settings.get("emojis", DEFAULT_SETTINGS["emojis"])
+
+    scanned = 0
+    ingested = 0
+    skipped = 0
+
+    scores, scores_sha = github_load_json(SCORES_PATH, {})
+    users, users_sha = github_load_json(USERS_PATH, {})
+
+    async for msg in ch.history(limit=messages):
+        if msg.author.bot or not msg.content:
+            continue
+
+        match = SCORE_REGEX.search(msg.content)
+        if not match:
+            continue
+
+        scanned += 1
+        score = int(match.group(1))
+
+        if score > MAX_SCORE:
+            skipped += 1
+            await react_safe(msg, em.get("too_high", "❌"), "❌")
+            continue
+
+        msg_time_uk = msg.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(UK_TZ)
+        date_key = today_key(msg_time_uk)
+        uid = str(msg.author.id)
+
+        if not isinstance(scores, dict):
+            scores = {}
+        scores.setdefault(date_key, {})
+        day_bucket = scores[date_key]
+
+        if uid in day_bucket:
+            skipped += 1
+            continue
+
+        user = users.setdefault(uid, {
+            "total_points": 0, 
+            "days_played": 0, 
+            "best_streak": 0,
+            "personal_best": {"score": 0, "date": "N/A"}
+        })
+        user["days_played"] += 1
+        user["total_points"] += score
+
+        day_bucket[uid] = {"score": score, "updated_at": msg_time_uk.isoformat()}
+        
+        # Silent PB update during rescan
+        if score > user.get("personal_best", {}).get("score", 0):
+            user["personal_best"] = {"score": score, "date": date_key}
+
+        ingested += 1
+        await react_safe(msg, em.get("rescan_ingested", "🔁"), "🔁")
+
+    github_save_json(SCORES_PATH, scores, scores_sha, f"MapTap: rescan last {messages} messages")
+    github_save_json(USERS_PATH, users, users_sha, "MapTap: rescan user stats")
+
+    await interaction.followup.send(
+        "✅ **Rescan complete**\n"
+        f"• Matches found: **{scanned}**\n"
+        f"• Newly ingested: **{ingested}**\n"
+        f"• Skipped: **{skipped}**",
+        ephemeral=True
+    )
 
 # =====================================================
-# RESCAN (Updated for PB Logic)
+# SCHEDULED ACTIONS
 # =====================================================
-@client.tree.command(name="rescan", description="Sync data and fix PBs")
-async def rescan(interaction: discord.Interaction, messages: int = 50):
-    s, _ = load_settings()
-    if not has_admin_access(interaction.user, s): return await interaction.response.send_message("No.", ephemeral=True)
-    await interaction.response.defer(ephemeral=True)
+async def do_daily_post(settings: Dict[str, Any]):
+    ch = get_configured_channel(settings)
+    if not ch:
+        return
+    await ch.send(build_daily_prompt())
+
+async def do_daily_scoreboard(settings: Dict[str, Any]):
+    ch = get_configured_channel(settings)
+    if not ch:
+        return
+
+    scores, scores_sha = github_load_json(SCORES_PATH, {})
+    if not isinstance(scores, dict):
+        scores = {}
+
+    date_key = today_key()
+    today_scores = scores.get(date_key, {})
+
+    rows: List[Tuple[str, int]] = []
+    if isinstance(today_scores, dict):
+        for uid, entry in today_scores.items():
+            if isinstance(entry, dict) and "score" in entry:
+                try:
+                    rows.append((uid, int(entry["score"])))
+                except Exception:
+                    pass
+    rows.sort(key=lambda x: x[1], reverse=True)
+
+    await ch.send(build_daily_scoreboard_text(date_key, rows))
+
+    cleaned = cleanup_old_scores(scores, CLEANUP_DAYS)
+    if cleaned != scores:
+        github_save_json(SCORES_PATH, cleaned, scores_sha, f"MapTap: cleanup keep {CLEANUP_DAYS} days")
+
+async def do_weekly_roundup(settings: Dict[str, Any]):
+    now = datetime.now(UK_TZ)
+    ch = get_configured_channel(settings)
+    if not ch:
+        return
+
+    scores, _ = github_load_json(SCORES_PATH, {})
+    if not isinstance(scores, dict):
+        scores = {}
+
+    mon = monday_of_week(now)
+    sun = mon + timedelta(days=6)
+    week_dates = [(mon + timedelta(days=i)).isoformat() for i in range(7)]
+
+    weekly: Dict[str, Dict[str, int]] = {}
+    for dkey in week_dates:
+        day_bucket = scores.get(dkey, {})
+        if not isinstance(day_bucket, dict):
+            continue
+        for uid, entry in day_bucket.items():
+            if not isinstance(entry, dict) or "score" not in entry:
+                continue
+            try:
+                sc = int(entry["score"])
+            except Exception:
+                continue
+            weekly.setdefault(uid, {"total": 0, "days": 0})
+            weekly[uid]["total"] += sc
+            weekly[uid]["days"] += 1
+
+    rows: List[Tuple[str, int, int]] = [(uid, v["total"], v["days"]) for uid, v in weekly.items()]
+    rows.sort(key=lambda x: x[1], reverse=True)
+
+    await ch.send(build_weekly_roundup_text(mon, sun, rows))
     
-    scores, s_sha = github_load_json(SCORES_PATH, {})
-    users, u_sha = github_load_json(USERS_PATH, {})
-    
-    # Fix PBs from existing JSON first
-    for d, day in scores.items():
-        for uid, entry in day.items():
-            sc = int(entry["score"])
-            u = users.setdefault(uid, {"total_points": 0, "days_played": 0, "best_streak": 0, "personal_best": {"score": 0, "date": "N/A"}})
-            if sc > u["personal_best"]["score"]: u["personal_best"] = {"score": sc, "date": d}
-
-    github_save_json(USERS_PATH, users, u_sha, "Rescan Sync")
-    await interaction.followup.send("✅ Rescan & Data Sync Complete.")
-
-# =====================================================
-# RUN
-# =====================================================
-app = Flask("maptap")
-@app.get("/")
-def home(): return "MapTap Online"
+async def do_rivalry_alert(settings: Dict[str, Any]):
+    ch = get_configured_channel(settings)
+    if not ch:
+        return
+    await ch.send("🔥 **MapTap Rivalry Alert!** Only 24 hours left in the week! Check the ranks and secure your spot!")
 
 if __name__ == "__main__":
-    Thread(target=lambda: app.run(host="0.0.0.0", port=int(os.getenv("PORT", 10000)))).start()
+    Thread(target=run_web).start()
     client.run(TOKEN)
