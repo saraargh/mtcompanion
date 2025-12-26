@@ -314,7 +314,7 @@ def build_leaderboard_embed(
     scope_value: str,
     settings: Dict[str, Any],
     users: Dict[str, Any],
-    scores: Dict[str
+    scores: Dict[str]
     
 # =====================================================
 # DISCORD CLIENT
@@ -819,7 +819,8 @@ async def on_message(message: discord.Message):
 
 # =====================================================
 # /mymaptap — EMBED (RESTORED)
-# =====================================================
+##
+
 @client.tree.command(name="mymaptap", description="View your MapTap stats")
 async def mymaptap(interaction: discord.Interaction):
     users, _ = github_load_json(USERS_PATH, {})
@@ -827,53 +828,59 @@ async def mymaptap(interaction: discord.Interaction):
 
     uid = str(interaction.user.id)
     stats = users.get(uid)
+
     if not stats:
-        await interaction.response.send_message("No MapTap scores yet 🗺️")
+        await interaction.response.send_message(
+            "🗺️ You don’t have any MapTap scores yet.",
+            ephemeral=True,
+        )
         return
 
-    rank, total = calculate_all_time_rank(users, uid)
-    cur = calculate_current_streak(scores, uid)
-    avg = round(stats["total_points"] / stats["days_played"])
+    # Rankings / stats
+    rank, total_players = calculate_all_time_rank(users, uid)
+    current_streak = calculate_current_streak(scores, uid)
+    average_score = round(stats["total_points"] / stats["days_played"])
 
     pb = stats["personal_best"]
     pb_date = pb["date"]
     if pb_date != "N/A":
         pb_date = datetime.strptime(pb_date, "%Y-%m-%d").strftime("%d %b %Y")
 
-    e = discord.Embed(
-    title=f"🗺️ MapTap Stats — {interaction.user.display_name}",
-    color=0x2ECC71,
-)
+    embed = discord.Embed(
+        title=f"🗺️ MapTap Stats — {interaction.user.display_name}",
+        color=0x2ECC71,
+    )
 
-e.add_field(
-    name="📊 Server Rankings",
-    value=(
-        f"🥇 All-Time: #{rank} of {total}\n"
-        f"🏁 This Week: see leaderboard"
-    ),
-    inline=False,
-)
+    embed.add_field(
+        name="📊 Server Rankings",
+        value=(
+            f"🥇 All-Time: **#{rank} of {total_players}**\n"
+            f"🏁 This Week: see leaderboard"
+        ),
+        inline=False,
+    )
 
-e.add_field(
-    name="⭐ Personal Records",
-    value=(
-        f"Personal Best: {pb['score']} ({pb_date})\n"
-        f"Best Streak: 🏆 {stats['best_streak']} days"
-    ),
-    inline=False,
-)
+    embed.add_field(
+        name="⭐ Personal Records",
+        value=(
+            f"Personal Best: **{pb['score']}** ({pb_date})\n"
+            f"Best Streak: 🏆 **{stats['best_streak']} days**\n"
+            f"Current Streak: 🔥 **{current_streak} days**"
+        ),
+        inline=False,
+    )
 
-e.add_field(
-    name="📈 Overall Stats",
-    value=(
-        f"Total Points: {stats['total_points']}\n"
-        f"Days Played: {stats['days_played']}\n"
-        f"Average Score: {avg}"
-    ),
-    inline=False,
-)
+    embed.add_field(
+        name="📈 Overall Stats",
+        value=(
+            f"Total Points: **{stats['total_points']}**\n"
+            f"Days Played: **{stats['days_played']}**\n"
+            f"Average Score: **{average_score}**"
+        ),
+        inline=False,
+    )
 
-await interaction.response.send_message(embed=e)
+    await interaction.response.send_message(embed=embed)
 
 ##settings##
 @client.tree.command(name="maptapsettings", description="Configure MapTap settings (admin only)")
