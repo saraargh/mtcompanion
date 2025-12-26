@@ -409,174 +409,8 @@ def get_configured_channel(settings: Dict[str, Any]) -> Optional[discord.TextCha
 # =========================
 
 # =====================================================
-# SETTINGS UI
+# SETTINGS UI (FINAL – OPTION B)
 # =====================================================
-class EmojiSettingsModal(discord.ui.Modal, title="MapTap Reaction Emojis"):
-    recorded = discord.ui.TextInput(label="Score recorded emoji", required=True)
-    too_high = discord.ui.TextInput(label="Too high score emoji", required=True)
-    rescan_ingested = discord.ui.TextInput(label="Rescan ingested emoji", required=True)
-
-    def __init__(self, view_ref: "MapTapSettingsView"):
-        super().__init__()
-        self.view_ref = view_ref
-        em = view_ref.settings.get("emojis", {})
-        self.recorded.default = em.get("recorded", "🌏")
-        self.too_high.default = em.get("too_high", "❌")
-        self.rescan_ingested.default = em.get("rescan_ingested", "🔁")
-
-    async def on_submit(self, interaction: discord.Interaction):
-        self.view_ref.settings["emojis"] = {
-            "recorded": self.recorded.value,
-            "too_high": self.too_high.value,
-            "rescan_ingested": self.rescan_ingested.value,
-        }
-        await self.view_ref._save_refresh(interaction, "MapTap: update emojis")
-
-
-class TimeSettingsModal(discord.ui.Modal, title="MapTap Times (UK)"):
-    daily_post = discord.ui.TextInput(label="Daily post (HH:MM)", required=True)
-    daily_scoreboard = discord.ui.TextInput(label="Daily scoreboard (HH:MM)", required=True)
-    weekly_roundup = discord.ui.TextInput(label="Weekly roundup (Sun)", required=True)
-    rivalry = discord.ui.TextInput(label="Rivalry alert (Sat)", required=True)
-    monthly_leaderboard = discord.ui.TextInput(label="Monthly leaderboard (1st)", required=True)
-
-    def __init__(self, view_ref: "MapTapSettingsView"):
-        super().__init__()
-        self.view_ref = view_ref
-        t = view_ref.settings.get("times", {})
-        self.daily_post.default = t["daily_post"]
-        self.daily_scoreboard.default = t["daily_scoreboard"]
-        self.weekly_roundup.default = t["weekly_roundup"]
-        self.rivalry.default = t["rivalry"]
-        self.monthly_leaderboard.default = t["monthly_leaderboard"]
-
-    async def on_submit(self, interaction: discord.Interaction):
-        for v in (
-            self.daily_post.value,
-            self.daily_scoreboard.value,
-            self.weekly_roundup.value,
-            self.rivalry.value,
-            self.monthly_leaderboard.value,
-        ):
-            try:
-                datetime.strptime(v, "%H:%M")
-            except Exception:
-                await interaction.response.send_message("❌ Invalid time format (HH:MM)", ephemeral=True)
-                return
-
-        self.view_ref.settings["times"] = {
-            "daily_post": self.daily_post.value,
-            "daily_scoreboard": self.daily_scoreboard.value,
-            "weekly_roundup": self.weekly_roundup.value,
-            "rivalry": self.rivalry.value,
-            "monthly_leaderboard": self.monthly_leaderboard.value,
-        }
-        await self.view_ref._save_refresh(interaction, "MapTap: update times")
-
-
-def _yn_options(current: bool):
-    return [
-        discord.SelectOption(label="On", value="on", default=current),
-        discord.SelectOption(label="Off", value="off", default=not current),
-    ]
-
-
-class ConfigureAlertsView(discord.ui.View):
-    def __init__(self, parent: "MapTapSettingsView"):
-        super().__init__(timeout=240)
-        self.parent = parent
-        self.pending = dict(parent.settings.get("alerts", {}))
-
-        self.daily_post.options = _yn_options(self.pending["daily_post_enabled"])
-        self.daily_scoreboard.options = _yn_options(self.pending["daily_scoreboard_enabled"])
-        self.weekly_roundup.options = _yn_options(self.pending["weekly_roundup_enabled"])
-        self.rivalry.options = _yn_options(self.pending["rivalry_enabled"])
-        self.monthly_lb.options = _yn_options(self.pending["monthly_leaderboard_enabled"])
-        self.zero_roasts.options = _yn_options(self.pending["zero_score_roasts_enabled"])
-        self.pb_msgs.options = _yn_options(self.pending["pb_messages_enabled"])
-        self.perfect.options = _yn_options(self.pending["perfect_score_enabled"])
-
-    def _set(self, key, val):
-        self.pending[key] = (val == "on")
-
-    @discord.ui.select(placeholder="Daily post", options=[])
-    async def daily_post(self, interaction, select):
-        self._set("daily_post_enabled", select.values[0])
-        await interaction.response.defer()
-
-    @discord.ui.select(placeholder="Daily scoreboard", options=[])
-    async def daily_scoreboard(self, interaction, select):
-        self._set("daily_scoreboard_enabled", select.values[0])
-        await interaction.response.defer()
-
-    @discord.ui.select(placeholder="Weekly roundup", options=[])
-    async def weekly_roundup(self, interaction, select):
-        self._set("weekly_roundup_enabled", select.values[0])
-        await interaction.response.defer()
-
-    @discord.ui.select(placeholder="Rivalry alerts", options=[])
-    async def rivalry(self, interaction, select):
-        self._set("rivalry_enabled", select.values[0])
-        await interaction.response.defer()
-
-    @discord.ui.select(placeholder="Monthly leaderboard", options=[])
-    async def monthly_lb(self, interaction, select):
-        self._set("monthly_leaderboard_enabled", select.values[0])
-        await interaction.response.defer()
-
-    @discord.ui.select(placeholder="Zero-score roasts", options=[])
-    async def zero_roasts(self, interaction, select):
-        self._set("zero_score_roasts_enabled", select.values[0])
-        await interaction.response.defer()
-
-    @discord.ui.select(placeholder="Personal best messages", options=[])
-    async def pb_msgs(self, interaction, select):
-        self._set("pb_messages_enabled", select.values[0])
-        await interaction.response.defer()
-
-    @discord.ui.select(placeholder="Perfect score messages", options=[])
-    async def perfect(self, interaction, select):
-        self._set("perfect_score_enabled", select.values[0])
-        await interaction.response.defer()
-
-    @discord.ui.button(label="Save alerts", style=discord.ButtonStyle.primary)
-    async def save(self, interaction, _):
-        self.parent.settings["alerts"] = self.pending
-        await self.parent._save_refresh(interaction, "MapTap: update alerts")
-
-
-class ResetPasswordModal(discord.ui.Modal, title="Reset MapTap Data"):
-    password = discord.ui.TextInput(label="Admin password", required=True)
-
-    def __init__(self, parent: "MapTapSettingsView"):
-        super().__init__()
-        self.parent = parent
-
-    async def on_submit(self, interaction: discord.Interaction):
-        if self.password.value.strip() != RESET_PASSWORD:
-            await interaction.response.send_message("❌ Wrong password", ephemeral=True)
-            return
-
-        await interaction.response.send_modal(ResetConfirmModal(self.parent))
-
-
-class ResetConfirmModal(discord.ui.Modal, title="Confirm Reset"):
-    confirm = discord.ui.TextInput(label="Type DELETE to confirm", required=True)
-
-    def __init__(self, parent: "MapTapSettingsView"):
-        super().__init__()
-        self.parent = parent
-
-    async def on_submit(self, interaction: discord.Interaction):
-        if self.confirm.value.strip().upper() != "DELETE":
-            await interaction.response.send_message("❌ Cancelled", ephemeral=True)
-            return
-
-        github_save_json(SCORES_PATH, {}, None, "MapTap reset scores")
-        github_save_json(USERS_PATH, {}, None, "MapTap reset users")
-
-        await interaction.response.send_message("✅ MapTap data reset", ephemeral=True)
-
 
 class MapTapSettingsView(discord.ui.View):
     def __init__(self, settings: Dict[str, Any], sha: Optional[str]):
@@ -584,22 +418,30 @@ class MapTapSettingsView(discord.ui.View):
         self.settings = settings
         self.sha = sha
 
+        self.add_item(ChannelSelect(self))
+        self.add_item(AdminRoleSelect(self))
+
     # ---------- EMBED ----------
     def _embed(self) -> discord.Embed:
         a = self.settings["alerts"]
         t = self.settings["times"]
+
+        def yn(v): return "✅" if v else "❌"
 
         e = discord.Embed(title="🗺️ MapTap Settings", color=0xF1C40F)
 
         e.add_field(
             name="Status",
             value=(
-                f"Bot: {'On' if self.settings['enabled'] else 'Off'}\n"
-                f"Daily post: {'On' if a['daily_post_enabled'] else 'Off'}\n"
-                f"Daily scoreboard: {'On' if a['daily_scoreboard_enabled'] else 'Off'}\n"
-                f"Weekly roundup: {'On' if a['weekly_roundup_enabled'] else 'Off'}\n"
-                f"Rivalry alerts: {'On' if a['rivalry_enabled'] else 'Off'}\n"
-                f"Monthly leaderboard: {'On' if a['monthly_leaderboard_enabled'] else 'Off'}"
+                f"Bot enabled: {yn(self.settings['enabled'])}\n"
+                f"Daily post: {yn(a['daily_post_enabled'])}\n"
+                f"Daily scoreboard: {yn(a['daily_scoreboard_enabled'])}\n"
+                f"Weekly roundup: {yn(a['weekly_roundup_enabled'])}\n"
+                f"Rivalry alerts: {yn(a['rivalry_enabled'])}\n"
+                f"Monthly leaderboard: {yn(a['monthly_leaderboard_enabled'])}\n"
+                f"Zero-score roasts: {yn(a['zero_score_roasts_enabled'])}\n"
+                f"Personal best messages: {yn(a['pb_messages_enabled'])}\n"
+                f"Perfect score messages: {yn(a['perfect_score_enabled'])}"
             ),
             inline=False,
         )
@@ -628,6 +470,7 @@ class MapTapSettingsView(discord.ui.View):
             inline=False,
         )
 
+        e.set_footer(text="Changes apply immediately")
         return e
 
     async def _save(self, interaction: discord.Interaction, msg: str):
@@ -635,30 +478,51 @@ class MapTapSettingsView(discord.ui.View):
         await interaction.response.edit_message(embed=self._embed(), view=self)
 
     # ---------- BUTTONS ----------
-    @discord.ui.button(label="Edit times", style=discord.ButtonStyle.primary)
-    async def edit_times(self, interaction, _):
-        await interaction.response.send_modal(TimeSettingsModal(self))
-
-    @discord.ui.button(label="Configure alerts", style=discord.ButtonStyle.primary)
-    async def configure_alerts(self, interaction, _):
-        await interaction.response.edit_message(
-            embed=discord.Embed(title="Configure alerts"),
-            view=ConfigureAlertsView(self),
-        )
-
     @discord.ui.button(label="Toggle bot", style=discord.ButtonStyle.secondary)
     async def toggle_bot(self, interaction, _):
         self.settings["enabled"] = not self.settings["enabled"]
         await self._save(interaction, "MapTap toggle bot")
 
+    @discord.ui.button(label="Edit times", style=discord.ButtonStyle.primary)
+    async def edit_times(self, interaction, _):
+        await interaction.response.send_modal(TimeSettingsModal(self))
+
     @discord.ui.button(label="Reset data", style=discord.ButtonStyle.danger)
     async def reset_data(self, interaction, _):
         await interaction.response.send_modal(ResetPasswordModal(self))
-# =========================
-# MapTap Companion Bot (FULL FILE)
-# Chunk 4/5
-# =========================
 
+
+# ---------- CHANNEL SELECT ----------
+class ChannelSelect(discord.ui.ChannelSelect):
+    def __init__(self, parent: MapTapSettingsView):
+        super().__init__(
+            placeholder="Select MapTap channel…",
+            channel_types=[discord.ChannelType.text],
+            min_values=0,
+            max_values=1,
+        )
+        self.parent = parent
+
+    async def callback(self, interaction: discord.Interaction):
+        self.parent.settings["channel_id"] = (
+            self.values[0].id if self.values else None
+        )
+        await self.parent._save(interaction, "MapTap set channel")
+
+
+# ---------- ADMIN ROLE SELECT ----------
+class AdminRoleSelect(discord.ui.RoleSelect):
+    def __init__(self, parent: MapTapSettingsView):
+        super().__init__(
+            placeholder="Select admin roles…",
+            min_values=0,
+            max_values=5,
+        )
+        self.parent = parent
+
+    async def callback(self, interaction: discord.Interaction):
+        self.parent.settings["admin_role_ids"] = [r.id for r in self.values]
+        await self.parent._save(interaction, "MapTap set admin roles")
 # =====================================================
 # SAFE REACTION
 # =====================================================
@@ -790,16 +654,23 @@ async def on_message(message: discord.Message):
             ])
         )
 
-    # perfect
+    # perfect score
     if settings["alerts"]["perfect_score_enabled"] and score >= MAX_SCORE:
-        await message.reply(f"🎯 PERFECT SCORE! **{score}**")
-
-    # PB
-    pb = users[uid]["personal_best"]["score"]
-    if score > pb:
+        await message.channel.send(
+            f"🎯 **Perfect Score!** {message.author.mention} just hit **{score}**!"
+        )
+    
+    # personal best
+    old_pb = users[uid]["personal_best"]["score"]
+    if score > old_pb:
         users[uid]["personal_best"] = {"score": score, "date": dkey}
-        if settings["alerts"]["pb_messages_enabled"] and pb > 0:
-            await message.reply(f"🚀 New personal best: **{score}**")
+
+    if settings["alerts"]["pb_messages_enabled"] and old_pb > 0:
+        await message.channel.send(
+            f"🚀 **New Personal Best!**\n"
+            f"{message.author.mention} just beat their previous record of "
+            f"**{old_pb}** with a **{score}**!"
+        )
 
     # streaks
     cur = calculate_current_streak(scores, uid)
