@@ -588,9 +588,12 @@ class MapTapSettingsView(discord.ui.View):
     def embed(self) -> discord.Embed:
         a = self.settings["alerts"]
         t = self.settings["times"]
-
+    
+        def yn(v: bool) -> str:
+            return "✅" if v else "❌"
+    
         e = discord.Embed(title="🗺️ MapTap Settings", color=0xF1C40F)
-
+    
         e.add_field(
             name="Status",
             value=(
@@ -606,7 +609,7 @@ class MapTapSettingsView(discord.ui.View):
             ),
             inline=False,
         )
-
+    
         e.add_field(
             name="Times (UK)",
             value=(
@@ -618,10 +621,10 @@ class MapTapSettingsView(discord.ui.View):
             ),
             inline=False,
         )
-
+    
         channel = self.settings.get("channel_id")
         roles = self.settings.get("admin_role_ids", [])
-
+    
         e.add_field(
             name="Access",
             value=(
@@ -630,9 +633,9 @@ class MapTapSettingsView(discord.ui.View):
             ),
             inline=False,
         )
-
+    
         return e
-
+    
     async def save_and_refresh(self, interaction: discord.Interaction, msg: str):
         self.sha = save_settings(self.settings, self.sha, msg) or self.sha
         await interaction.response.edit_message(embed=self.embed(), view=self)
@@ -897,7 +900,7 @@ async def maptapsettings(interaction: discord.Interaction):
     view = MapTapSettingsView(settings, sha)
 
     await interaction.response.send_message(
-        embed=view._embed(),
+        embed=view.embed(),
         view=view,
     )
 
