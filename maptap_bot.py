@@ -1054,7 +1054,7 @@ class LeaderboardSelect(discord.ui.Select):
             rows.append((uid, avg))
 
         rows.sort(key=lambda x: x[1], reverse=True)
-        rows = rows[:10]
+        rows = rows[:20]
 
         # -------------------------
         # Build embed
