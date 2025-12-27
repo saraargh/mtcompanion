@@ -1428,11 +1428,14 @@ async def do_weekly_roundup(settings: Dict[str, Any]):
             totals[uid]["total"] += entry["score"]
             totals[uid]["days"] += 1
 
+    min_days = settings["minimum_days"]["this_week"]
+
     rows = [
         (uid, round(v["total"] / v["days"]))
         for uid, v in totals.items()
-        if v["days"] >= DEFAULT_SETTINGS["minimum_days"]["this_week"]
+        if v["days"] >= min_days
     ]
+    
     rows.sort(key=lambda x: x[1], reverse=True)
 
     await ch.send(build_weekly_roundup_text(rows))
@@ -1447,14 +1450,18 @@ async def do_monthly_leaderboard(settings: Dict[str, Any]):
     elig = eligible_users(users)
 
     rows = []
-    for uid, u in elig.items():
-        if u["days_played"] >= DEFAULT_SETTINGS["minimum_days"]["this_month"]:
-            avg = round(u["total_points"] / u["days_played"])
-            rows.append((uid, avg))
 
+    min_days = settings["minimum_days"]["this_month"]
+    
+    for uid, u in elig.items():
+        if u["days_played"] < min_days:
+            continue
+    
+        avg = round(u["total_points"] / u["days_played"])
+        rows.append((uid, avg))
+        
     rows.sort(key=lambda x: x[1], reverse=True)
     rows = rows[:10]
-
     if not rows:
         return
 
