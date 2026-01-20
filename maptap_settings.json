@@ -9,14 +9,14 @@
     1404098545006546954
   ],
   "alerts": {
-    "daily_post_enabled": true,
-    "daily_scoreboard_enabled": true,
-    "weekly_roundup_enabled": true,
+    "daily_post_enabled": false,
+    "daily_scoreboard_enabled": false,
+    "weekly_roundup_enabled": false,
     "rivalry_enabled": false,
-    "monthly_leaderboard_enabled": true,
-    "zero_score_roasts_enabled": true,
-    "pb_messages_enabled": true,
-    "perfect_score_enabled": true
+    "monthly_leaderboard_enabled": false,
+    "zero_score_roasts_enabled": false,
+    "pb_messages_enabled": false,
+    "perfect_score_enabled": false
   },
   "emojis": {
     "recorded": "<:maptapp:1451532874590191647>",
