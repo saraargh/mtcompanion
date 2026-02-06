@@ -206,5 +206,18 @@
       "score": 799,
       "date": "2026-02-03"
     }
+  },
+  "847045429086126082": {
+    "total_points": 67,
+    "days_played": 1,
+    "best_streak": 1,
+    "personal_best": {
+      "score": 67,
+      "date": "2026-02-06"
+    },
+    "personal_low": {
+      "score": 67,
+      "date": "2026-02-06"
+    }
   }
 }
