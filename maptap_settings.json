@@ -2,7 +2,8 @@
   "enabled": true,
   "channel_id": 1476851387819364372,
   "admin_role_ids": [
-    1476765248856920125
+    1476765248856920125,
+    1476738036694913106
   ],
   "alerts": {
     "daily_post_enabled": true,
