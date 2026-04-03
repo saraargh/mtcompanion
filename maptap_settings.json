@@ -17,9 +17,9 @@
   },
   "emojis": {
     "recorded": "<:maptapp:1476982463430660136>",
-    "too_high": "\u274c",
+    "too_high": "❌",
     "rescan_ingested": "<:maptapp:1476982463430660136>",
-    "config_issue": "\u26a0\ufe0f"
+    "config_issue": "⚠️"
   },
   "times": {
     "daily_post": "00:01",
@@ -28,12 +28,6 @@
     "rivalry": "14:00",
     "monthly_leaderboard": "00:05"
   },
-  "minimum_days": {
-    "this_week": 3,
-    "this_month": 7,
-    "all_time": 0,
-    "date_range": 0
-  },
   "last_run": {
     "daily_post": "2026-04-03",
     "daily_scoreboard": "2026-04-02",
@@ -41,13 +35,6 @@
     "rivalry": "2026-03-30",
     "monthly_leaderboard": "2026-03-01"
   },
-  "daily_post_enabled": true,
-  "daily_scoreboard_enabled": true,
-  "weekly_roundup_enabled": true,
-  "rivalry_enabled": true,
-  "monthly_leaderboard_enabled": true,
-  "zero_score_roast_enabled": true,
-  "roasts_enabled": true,
   "schedule": {
     "daily_post": "00:00",
     "daily_scoreboard": "23:30",
