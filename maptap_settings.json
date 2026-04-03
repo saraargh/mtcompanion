@@ -1,47 +1,49 @@
 {
-  "enabled": true,
-  "channel_id": 1476851387819364372,
-  "admin_role_ids": [
-    1476765248856920125,
-    1476738036694913106
-  ],
-  "alerts": {
-    "daily_post_enabled": true,
-    "daily_scoreboard_enabled": true,
-    "weekly_roundup_enabled": true,
-    "rivalry_enabled": true,
-    "monthly_leaderboard_enabled": true,
-    "zero_score_roasts_enabled": true,
-    "pb_messages_enabled": true,
-    "perfect_score_enabled": true
-  },
-  "emojis": {
-    "recorded": "<:maptapp:1476982463430660136>",
-    "too_high": "❌",
-    "rescan_ingested": "<:maptapp:1476982463430660136>",
-    "config_issue": "⚠️"
-  },
-  "times": {
-    "daily_post": "00:01",
-    "daily_scoreboard": "23:58",
-    "weekly_roundup": "23:45",
-    "rivalry": "14:00",
-    "monthly_leaderboard": "00:05"
-  },
-  "last_run": {
-    "daily_post": "2026-04-03",
-    "daily_scoreboard": "2026-04-02",
-    "weekly_roundup": "2026-03-29",
-    "rivalry": "2026-03-30",
-    "monthly_leaderboard": "2026-03-01"
-  },
-  "schedule": {
-    "daily_post": "00:00",
-    "daily_scoreboard": "23:30",
-    "weekly_day": 6,
-    "weekly_time": "23:45",
-    "rivalry_day": 4,
-    "rivalry_time": "19:30",
-    "rivalry_gap": 25
+  "1476735211894210751": {
+    "enabled": true,
+    "channel_id": 1476851387819364372,
+    "admin_role_ids": [
+      1476765248856920125,
+      1476738036694913106
+    ],
+    "alerts": {
+      "daily_post_enabled": true,
+      "daily_scoreboard_enabled": true,
+      "weekly_roundup_enabled": true,
+      "rivalry_enabled": true,
+      "monthly_leaderboard_enabled": true,
+      "zero_score_roasts_enabled": true,
+      "pb_messages_enabled": true,
+      "perfect_score_enabled": true
+    },
+    "emojis": {
+      "recorded": "<:maptapp:1476982463430660136>",
+      "too_high": "❌",
+      "rescan_ingested": "<:maptapp:1476982463430660136>",
+      "config_issue": "⚠️"
+    },
+    "times": {
+      "daily_post": "00:01",
+      "daily_scoreboard": "23:58",
+      "weekly_roundup": "23:45",
+      "rivalry": "14:00",
+      "monthly_leaderboard": "00:05"
+    },
+    "last_run": {
+      "daily_post": "2026-04-03",
+      "daily_scoreboard": "2026-04-02",
+      "weekly_roundup": "2026-03-29",
+      "rivalry": "2026-03-30",
+      "monthly_leaderboard": "2026-03-01"
+    },
+    "schedule": {
+      "daily_post": "00:00",
+      "daily_scoreboard": "23:30",
+      "weekly_day": 6,
+      "weekly_time": "23:45",
+      "rivalry_day": 4,
+      "rivalry_time": "19:30",
+      "rivalry_gap": 25
+    }
   }
 }
