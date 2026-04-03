@@ -74,7 +74,7 @@ DEFAULT_GUILD_SETTINGS: Dict[str, Any] = {
     },
 
     "emojis": {
-        "recorded": "<:maptap:1476982463430660136>",
+        "recorded": "<:maptapp:1476982463430660136>",
         "too_high": "❌",
         "rescan_ingested": "🔁",
         "config_issue": "⚠️",
