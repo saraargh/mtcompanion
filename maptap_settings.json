@@ -20,7 +20,7 @@
     "emojis": {
       "recorded": "<:maptapp:1476982463430660136>",
       "too_high": "\u274c",
-      "rescan_ingested": "<:maptapp:1476982463430660136>",
+      "rescan_ingested": "\ud83d\udd01",
       "config_issue": "\u26a0\ufe0f"
     },
     "times": {
@@ -69,7 +69,7 @@
       "perfect_score_enabled": true
     },
     "emojis": {
-      "recorded": "<:maptap:1476982463430660136>",
+      "recorded": "<:maptapp:1476982463430660136>",
       "too_high": "\u274c",
       "rescan_ingested": "\ud83d\udd01",
       "config_issue": "\u26a0\ufe0f"
