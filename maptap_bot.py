@@ -41,8 +41,6 @@ MAX_SCORE = int(os.getenv("MAPTAP_MAX_SCORE", "1000"))
 # Optional: to make slash commands appear instantly in a specific guild during dev
 GUILD_ID = os.getenv("MAPTAP_GUILD_ID", "").strip()
 
-RESET_PASSWORD = os.getenv("RESET_PASSWORD", "")
-
 RIVALRY_THRESHOLD = int(os.getenv("MAPTAP_RIVALRY_THRESHOLD", "15"))
 RIVALRY_MIN_PLAYERS = int(os.getenv("MAPTAP_RIVALRY_MIN_PLAYERS", "5"))
 
@@ -788,50 +786,6 @@ class ConfigureAlertsView(discord.ui.View):
         self.settings_view.settings["alerts"] = self.alerts
         await self.settings_view.save_and_refresh(interaction, "MapTap: update alerts")
 
-class ResetPasswordModal(discord.ui.Modal, title="Reset MapTap Data"):
-    password = discord.ui.TextInput(label="Admin password", required=True)
-
-    def __init__(self, settings_view: "MapTapSettingsView"):
-        super().__init__()
-        self.settings_view = settings_view
-
-    async def on_submit(self, interaction: discord.Interaction):
-        if not RESET_PASSWORD:
-            await interaction.response.send_message("❌ RESET_PASSWORD env var not set.", ephemeral=True)
-            return
-
-        if self.password.value != RESET_PASSWORD:
-            await interaction.response.send_message("❌ Wrong password.", ephemeral=True)
-            return
-
-        await interaction.response.send_modal(ResetConfirmModal(self.settings_view))
-
-class ResetConfirmModal(discord.ui.Modal, title="Confirm Reset"):
-    confirm = discord.ui.TextInput(label="Type DELETE to confirm", required=True)
-
-    def __init__(self, settings_view: "MapTapSettingsView"):
-        super().__init__()
-        self.settings_view = settings_view
-
-    async def on_submit(self, interaction: discord.Interaction):
-        if self.confirm.value.strip().upper() != "DELETE":
-            await interaction.response.send_message("❌ Cancelled.", ephemeral=True)
-            return
-
-        guild_id = str(interaction.guild_id)
-
-        # Reset only this guild's data
-        all_scores, scores_sha = github_load_json(SCORES_PATH, {})
-        if isinstance(all_scores, dict):
-            all_scores.pop(guild_id, None)
-            github_save_json(SCORES_PATH, all_scores, scores_sha, f"MapTap reset scores guild {guild_id}")
-
-        all_users, users_sha = github_load_json(USERS_PATH, {})
-        if isinstance(all_users, dict):
-            all_users.pop(guild_id, None)
-            github_save_json(USERS_PATH, all_users, users_sha, f"MapTap reset users guild {guild_id}")
-
-        await interaction.response.send_message("✅ MapTap data reset for this server.", ephemeral=True)
 
 class MapTapSettingsView(discord.ui.View):
     def __init__(self, settings: Dict[str, Any], guild_id: str):
@@ -915,9 +869,6 @@ class MapTapSettingsView(discord.ui.View):
             view=ConfigureAlertsView(self),
         )
 
-    @discord.ui.button(label="Reset data", style=discord.ButtonStyle.danger)
-    async def reset(self, interaction: discord.Interaction, _):
-        await interaction.response.send_modal(ResetPasswordModal(self))
 
 # =====================================================
 # MESSAGE LISTENER (SCORE INGEST)
