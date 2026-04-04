@@ -40,7 +40,7 @@
       "daily_post": "2026-04-04",
       "daily_scoreboard": "2026-04-03",
       "weekly_roundup": "2026-03-29",
-      "rivalry": "2026-03-30",
+      "rivalry": "2026-04-04",
       "monthly_leaderboard": "2026-03-01"
     },
     "schedule": {
@@ -91,7 +91,7 @@
       "daily_post": "2026-04-04",
       "daily_scoreboard": "2026-04-03",
       "weekly_roundup": null,
-      "rivalry": null,
+      "rivalry": "2026-04-04",
       "monthly_leaderboard": null
     }
   },
@@ -135,7 +135,7 @@
       "daily_post": null,
       "daily_scoreboard": null,
       "weekly_roundup": null,
-      "rivalry": null,
+      "rivalry": "2026-04-04",
       "monthly_leaderboard": null
     }
   }
