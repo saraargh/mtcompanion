@@ -331,7 +331,7 @@ def default_user_stats() -> Dict[str, Any]:
         "days_played": 0,
         "best_streak": 0,
         "personal_best": {"score": 0, "date": "N/A"},
-        "personal_low": {"score": 100000, "date": "N/A"},
+        "personal_low": {"score": 1001, "date": "N/A"},
     }
 
 # =====================================================
@@ -902,7 +902,7 @@ async def on_message(message: discord.Message):
     guild_users.setdefault(uid, default_user_stats())
 
     guild_users[uid].setdefault("personal_best", {"score": 0, "date": "N/A"})
-    guild_users[uid].setdefault("personal_low", {"score": 100000, "date": "N/A"})
+    guild_users[uid].setdefault("personal_low", {"score": 1001, "date": "N/A"})
     guild_users[uid].setdefault("best_streak", 0)
     guild_users[uid].setdefault("total_points", 0)
     guild_users[uid].setdefault("days_played", 0)
@@ -963,13 +963,16 @@ async def on_message(message: discord.Message):
             except Exception as e:
                 print(f"⚠️ personal low send failed:", e)
 
+# 1. Calculate and update streaks
     cur = calculate_current_streak(guild_scores, uid, tz)
-        guild_users[uid]["current_streak"] = cur  # <--- ADD THIS LINE HERE
+    guild_users[uid]["current_streak"] = cur 
+    
     try:
         guild_users[uid]["best_streak"] = max(int(guild_users[uid].get("best_streak", 0)), int(cur))
     except Exception:
         guild_users[uid]["best_streak"] = cur
 
+    # 2. Save the updated scores (Moved out of the streak block)
     try:
         save_guild_scores(guild_id, all_scores, guild_scores, scores_sha, "MapTap score update")
     except Exception as e:
@@ -1197,7 +1200,7 @@ async def mymaptap(interaction: discord.Interaction):
         except Exception:
             pass
     pl = stats["personal_low"]
-    low_score = int(pl.get("score", 100000))
+    low_score = int(pl.get("score", 1001))
     low_date = pl.get("date", "N/A")
     if low_date != "N/A":
         try:
@@ -1205,7 +1208,7 @@ async def mymaptap(interaction: discord.Interaction):
         except Exception:
             pass
     low_line = "Personal Low: **—**"
-    if low_score != 100000:
+    if low_score != 1001:
         low_line = f"Personal Low: **{low_score}** ({low_date})"
     embed = discord.Embed(title=f"🗺️ MapTap Stats — {interaction.user.display_name}", color=0x2ECC71)
     embed.add_field(
