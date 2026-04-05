@@ -337,21 +337,53 @@ def default_user_stats() -> Dict[str, Any]:
 # =====================================================
 # STREAK / RANK HELPERS
 # =====================================================
-def calculate_current_streak(guild_scores: Dict[str, Any], user_id: str, tz: ZoneInfo) -> int:
-    played: List[date] = []
+def calculate_best_streak(guild_scores: Dict[str, Any], user_id: str) -> int:
+    """Finds the longest consecutive day chain ever recorded in this guild."""
+    played_dates: List[date] = []
     for dkey, bucket in guild_scores.items():
         if isinstance(bucket, dict) and user_id in bucket:
             d = _safe_date(dkey)
             if d:
-                played.append(d)
-    if not played:
+                played_dates.append(d)
+    
+    if not played_dates:
         return 0
-    played_set = set(played)
-    d = datetime.now(tz).date()
+        
+    played_dates.sort()
+    max_streak = 0
+    current_chain = 0
+    prev_date = None
+
+    for d in played_dates:
+        if prev_date is None or d == prev_date + timedelta(days=1):
+            current_chain += 1
+        else:
+            current_chain = 1
+        
+        max_streak = max(max_streak, current_chain)
+        prev_date = d
+        
+    return max_streak
+
+def calculate_current_streak(guild_scores: Dict[str, Any], user_id: str, tz: ZoneInfo) -> int:
+    """Calculates the streak ending today or yesterday."""
+    played_set = set()
+    for dkey, bucket in guild_scores.items():
+        if isinstance(bucket, dict) and user_id in bucket:
+            d = _safe_date(dkey)
+            if d: played_set.add(d)
+            
+    today = datetime.now(tz).date()
+    yesterday = today - timedelta(days=1)
+    
+    if today not in played_set and yesterday not in played_set:
+        return 0
+        
+    check_date = today if today in played_set else yesterday
     streak = 0
-    while d in played_set:
+    while check_date in played_set:
         streak += 1
-        d -= timedelta(days=1)
+        check_date -= timedelta(days=1)
     return streak
 
 def eligible_users(guild_users: Dict[str, Any]) -> Dict[str, Any]:
@@ -1347,43 +1379,63 @@ async def rescan(interaction: discord.Interaction):
         f"_All stats rebuilt from history_"
     )
 
-
-@client.tree.command(name="repair_stats", description="Repair MapTap user stats from existing score data (admin)")
+@client.tree.command(name="repair_stats", description="Repair MapTap user stats for THIS guild (admin)")
 async def repair_stats(interaction: discord.Interaction):
-    if not isinstance(interaction.user, discord.Member):
-        await interaction.response.send_message("❌ Server only.", ephemeral=True)
+    if not interaction.guild_id:
+        await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
         return
+
     guild_id = str(interaction.guild_id)
     settings, _ = load_guild_settings(guild_id)
+    
     if not has_admin_access(interaction.user, settings):
-        await interaction.response.send_message("❌ No permission", ephemeral=True)
+        await interaction.response.send_message("❌ You do not have permission to run this.", ephemeral=True)
         return
+    
     tz = get_guild_tz(settings)
-    await interaction.response.send_message("🛠️ Repairing MapTap stats…", ephemeral=True)
-    all_scores, guild_scores, scores_sha = load_guild_scores(guild_id)
+    await interaction.response.send_message("🛠️ Repairing stats for this server only...", ephemeral=True)
+    
+    # Isolate data to this guild
+    all_scores, guild_scores, _ = load_guild_scores(guild_id)
     all_users, _, users_sha = load_guild_users(guild_id)
-    rebuilt: Dict[str, Dict[str, Any]] = {}
-    played_days: Dict[str, set] = {}
+    
+    rebuilt_guild_data: Dict[str, Dict[str, Any]] = {}
+    
     for dkey, bucket in guild_scores.items():
         if not isinstance(bucket, dict):
             continue
+            
         for uid, entry in bucket.items():
             try:
-                sc = int(entry["score"])
-            except Exception:
+                sc = int(entry.get("score", 0))
+            except (ValueError, TypeError):
                 continue
-            rebuilt.setdefault(uid, default_user_stats())
-            played_days.setdefault(uid, set()).add(dkey)
-            rebuilt[uid]["total_points"] += sc
-            if sc > int(rebuilt[uid]["personal_best"]["score"]):
-                rebuilt[uid]["personal_best"] = {"score": sc, "date": dkey}
-            if sc < int(rebuilt[uid]["personal_low"]["score"]):
-                rebuilt[uid]["personal_low"] = {"score": sc, "date": dkey}
-    for uid, days in played_days.items():
-        rebuilt[uid]["days_played"] = len(days)
-        rebuilt[uid]["best_streak"] = calculate_current_streak(guild_scores, uid, tz)
-    save_guild_users(guild_id, all_users, rebuilt, users_sha, f"MapTap repair stats guild {guild_id}")
-    await interaction.followup.send(f"✅ Repair complete — users repaired: **{len(rebuilt)}**", ephemeral=False)
+                
+            if uid not in rebuilt_guild_data:
+                rebuilt_guild_data[uid] = default_user_stats()
+                rebuilt_guild_data[uid]["personal_low"] = {"score": 1001, "date": "N/A"}
+
+            rebuilt_guild_data[uid]["total_points"] += sc
+            rebuilt_guild_data[uid]["days_played"] += 1
+            
+            if sc > int(rebuilt_guild_data[uid]["personal_best"].get("score", -1)):
+                rebuilt_guild_data[uid]["personal_best"] = {"score": sc, "date": dkey}
+            
+            if sc < int(rebuilt_guild_data[uid]["personal_low"].get("score", 1001)):
+                rebuilt_guild_data[uid]["personal_low"] = {"score": sc, "date": dkey}
+
+    # Apply the new streak logic
+    for uid in rebuilt_guild_data:
+        rebuilt_guild_data[uid]["best_streak"] = calculate_best_streak(guild_scores, uid)
+        rebuilt_guild_data[uid]["current_streak"] = calculate_current_streak(guild_scores, uid, tz)
+        
+        if rebuilt_guild_data[uid]["personal_low"]["score"] == 1001:
+            rebuilt_guild_data[uid]["personal_low"] = {"score": 0, "date": "N/A"}
+
+    # Save ONLY this guild's updated records
+    save_guild_users(guild_id, all_users, rebuilt_guild_data, users_sha, f"Repaired stats for Guild {guild_id}")
+    
+    await interaction.followup.send(f"✅ Repair complete for **{len(rebuilt_guild_data)}** players in this server.", ephemeral=False)
 
 
 @client.tree.command(name="help", description="How to use the MapTap bot")
