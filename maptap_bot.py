@@ -1386,62 +1386,54 @@ async def rescan(interaction: discord.Interaction):
 @client.tree.command(name="repair_stats", description="Repair MapTap user stats for THIS guild (admin)")
 async def repair_stats(interaction: discord.Interaction):
     if not interaction.guild_id:
-        await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
+        await interaction.response.send_message("❌ Server only.", ephemeral=True)
         return
 
     guild_id = str(interaction.guild_id)
     settings, _ = load_guild_settings(guild_id)
     
     if not has_admin_access(interaction.user, settings):
-        await interaction.response.send_message("❌ You do not have permission to run this.", ephemeral=True)
+        await interaction.response.send_message("❌ No permission.", ephemeral=True)
         return
     
     tz = get_guild_tz(settings)
-    await interaction.response.send_message("🛠️ Repairing stats for this server only...", ephemeral=True)
+    await interaction.response.send_message("🛠️ Repairing stats...", ephemeral=True)
     
-    # Isolate data to this guild
     all_scores, guild_scores, _ = load_guild_scores(guild_id)
     all_users, _, users_sha = load_guild_users(guild_id)
     
     rebuilt_guild_data: Dict[str, Dict[str, Any]] = {}
     
     for dkey, bucket in guild_scores.items():
-        if not isinstance(bucket, dict):
-            continue
+        if not isinstance(bucket, dict): continue
             
         for uid, entry in bucket.items():
-            try:
-                sc = int(entry.get("score", 0))
-            except (ValueError, TypeError):
-                continue
+            sc = int(entry.get("score", 0))
                 
             if uid not in rebuilt_guild_data:
                 rebuilt_guild_data[uid] = default_user_stats()
+                # Ensure we start at 1001 so the first comparison works
                 rebuilt_guild_data[uid]["personal_low"] = {"score": 1001, "date": "N/A"}
 
             rebuilt_guild_data[uid]["total_points"] += sc
             rebuilt_guild_data[uid]["days_played"] += 1
             
-            if sc > int(rebuilt_guild_data[uid]["personal_best"].get("score", -1)):
+            # Update Personal Best
+            if sc > int(rebuilt_guild_data[uid]["personal_best"].get("score", 0)):
                 rebuilt_guild_data[uid]["personal_best"] = {"score": sc, "date": dkey}
             
+            # Update Personal Low (The actual fix)
             if sc < int(rebuilt_guild_data[uid]["personal_low"].get("score", 1001)):
                 rebuilt_guild_data[uid]["personal_low"] = {"score": sc, "date": dkey}
 
-    # Apply the new streak logic
     for uid in rebuilt_guild_data:
         rebuilt_guild_data[uid]["best_streak"] = calculate_best_streak(guild_scores, uid)
         rebuilt_guild_data[uid]["current_streak"] = calculate_current_streak(guild_scores, uid, tz)
-        
-        if rebuilt_guild_data[uid]["personal_low"]["score"] == 1001:
-            rebuilt_guild_data[uid]["personal_low"] = {"score": 0, "date": "N/A"}
+        # REMOVED: The line that was forcing scores to 0. 
+        # If they have a score, the loop above already replaced 1001 with their real lowest score.
 
-    # Save ONLY this guild's updated records
     save_guild_users(guild_id, all_users, rebuilt_guild_data, users_sha, f"Repaired stats for Guild {guild_id}")
-    
-    await interaction.followup.send(f"✅ Repair complete for **{len(rebuilt_guild_data)}** players in this server.", ephemeral=False)
-
-
+    await interaction.followup.send(f"✅ Repaired **{len(rebuilt_guild_data)}** players. Low scores are now accurate.", ephemeral=False)
 @client.tree.command(name="help", description="How to use the MapTap bot")
 async def help_command(interaction: discord.Interaction):
     embed = discord.Embed(
