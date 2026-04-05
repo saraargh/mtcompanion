@@ -1477,7 +1477,7 @@ async def repair_stats(interaction: discord.Interaction):
         # If they have a score, the loop above already replaced 1001 with their real lowest score.
 
     save_guild_users(guild_id, all_users, rebuilt_guild_data, users_sha, f"Repaired stats for Guild {guild_id}")
-    await interaction.followup.send(f"✅ Repaired **{len(rebuilt_guild_data)}** players. Low scores are now accurate.", ephemeral=False)
+    await interaction.followup.send(f"✅ Repaired **{len(rebuilt_guild_data)}** players. Scores are now accurate.", ephemeral=False)
 @client.tree.command(name="help", description="How to use the MapTap bot")
 async def help_command(interaction: discord.Interaction):
     embed = discord.Embed(
