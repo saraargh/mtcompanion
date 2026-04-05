@@ -1374,57 +1374,92 @@ async def rescan(interaction: discord.Interaction):
     if not isinstance(interaction.user, discord.Member):
         await interaction.response.send_message("❌ Server only.", ephemeral=True)
         return
+
     guild_id = str(interaction.guild_id)
     settings, _ = load_guild_settings(guild_id)
+
     if not has_admin_access(interaction.user, settings):
         await interaction.response.send_message("❌ No permission", ephemeral=True)
         return
+
     channel = get_configured_channel(settings)
     if not channel:
         await interaction.response.send_message("❌ MapTap channel not set", ephemeral=True)
         return
+
     tz = get_guild_tz(settings)
     await interaction.response.send_message("🔁 Full rescan started… this may take a moment.", ephemeral=True)
+
     guild_scores: Dict[str, Dict[str, Dict[str, Any]]] = {}
     guild_users: Dict[str, Dict[str, Any]] = {}
     ingested = 0
+
+    # PASS 1: rebuild the per-day score table only
     async for msg in channel.history(limit=None, oldest_first=True):
         if msg.author.bot:
             continue
         if not MAPTAP_HINT_REGEX.search(msg.content or ""):
             continue
+
         m = SCORE_REGEX.search(msg.content or "")
         if not m:
             continue
+
         score = int(m.group(1))
-        if score > MAX_SCORE:
+        if score <= 0 or score > MAX_SCORE:
             continue
+
         msg_time = msg.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
         dkey = today_key(msg_time, tz)
         uid = str(msg.author.id)
+
         guild_scores.setdefault(dkey, {})
-        guild_scores[dkey][uid] = {"score": score, "updated_at": msg_time.isoformat()}
-        guild_users.setdefault(uid, default_user_stats())
-        guild_users[uid]["total_points"] += score
+
+        # If they posted multiple times on one day, keep the latest one in history
+        guild_scores[dkey][uid] = {
+            "score": score,
+            "updated_at": msg_time.isoformat()
+        }
+
         ingested += 1
-        if score > int(guild_users[uid]["personal_best"]["score"]):
-            guild_users[uid]["personal_best"] = {"score": score, "date": dkey}
-        if score < int(guild_users[uid]["personal_low"]["score"]):
-            guild_users[uid]["personal_low"] = {"score": score, "date": dkey}
         await react_safe(msg, settings["emojis"]["rescan_ingested"], "🔁")
+
+    # PASS 2: rebuild user stats from the final score table
+    for dkey, bucket in guild_scores.items():
+        if not isinstance(bucket, dict):
+            continue
+
+        for uid, entry in bucket.items():
+            sc = int(entry.get("score", 0))
+
+            if uid not in guild_users:
+                guild_users[uid] = default_user_stats()
+                guild_users[uid]["personal_low"] = {"score": 1001, "date": "N/A"}
+
+            guild_users[uid]["total_points"] += sc
+            guild_users[uid]["days_played"] += 1
+
+            if sc > int(guild_users[uid]["personal_best"].get("score", 0)):
+                guild_users[uid]["personal_best"] = {"score": sc, "date": dkey}
+
+            if sc < int(guild_users[uid]["personal_low"].get("score", 1001)):
+                guild_users[uid]["personal_low"] = {"score": sc, "date": dkey}
+
     for uid in guild_users:
-        played_days = {dkey for dkey, bucket in guild_scores.items() if uid in bucket}
-        guild_users[uid]["days_played"] = len(played_days)
-        guild_users[uid]["best_streak"] = calculate_current_streak(guild_scores, uid, tz)
+        guild_users[uid]["best_streak"] = calculate_best_streak(guild_scores, uid)
+        guild_users[uid]["current_streak"] = calculate_current_streak(guild_scores, uid, tz)
+
     all_scores, _, scores_sha = load_guild_scores(guild_id)
     all_users, _, users_sha = load_guild_users(guild_id)
+
     save_guild_scores(guild_id, all_scores, guild_scores, scores_sha, f"MapTap rescan guild {guild_id}")
     save_guild_users(guild_id, all_users, guild_users, users_sha, f"MapTap rescan guild {guild_id}")
+
     await channel.send(
         f"✅ **Rescan complete**\n"
-        f"• Scores ingested: **{ingested}**\n"
+        f"• Messages scanned: **{ingested}**\n"
         f"• Players rebuilt: **{len(guild_users)}**\n\n"
-        f"_All stats rebuilt from history_"
+        f"_All stats rebuilt from final daily history_"
     )
 
 @client.tree.command(name="repair_stats", description="Repair MapTap user stats for THIS guild (admin)")
@@ -1478,6 +1513,7 @@ async def repair_stats(interaction: discord.Interaction):
 
     save_guild_users(guild_id, all_users, rebuilt_guild_data, users_sha, f"Repaired stats for Guild {guild_id}")
     await interaction.followup.send(f"🔄 **Sync Complete**: Recalculated stats for **{len(rebuilt_guild_data)}** players from history. All records are now up to date.", ephemeral=False)
+
 @client.tree.command(name="help", description="How to use the MapTap bot")
 async def help_command(interaction: discord.Interaction):
     embed = discord.Embed(
