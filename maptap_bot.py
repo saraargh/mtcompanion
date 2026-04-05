@@ -38,15 +38,11 @@ MAPTAP_URL = os.getenv("MAPTAP_URL", "https://www.maptap.gg")
 CLEANUP_DAYS = int(os.getenv("MAPTAP_CLEANUP_DAYS", "69"))
 MAX_SCORE = int(os.getenv("MAPTAP_MAX_SCORE", "1000"))
 
-# Optional: to make slash commands appear instantly in a specific guild during dev
 GUILD_ID = os.getenv("MAPTAP_GUILD_ID", "").strip()
 
 RIVALRY_THRESHOLD = int(os.getenv("MAPTAP_RIVALRY_THRESHOLD", "15"))
 RIVALRY_MIN_PLAYERS = int(os.getenv("MAPTAP_RIVALRY_MIN_PLAYERS", "5"))
 
-# ---------------------------------------------
-# Parsing
-# ---------------------------------------------
 SCORE_REGEX = re.compile(r"Final\s*score:\s*(\d+)", re.IGNORECASE)
 ROUND_ZERO_REGEX = re.compile(r"(^|\s)0(?!\d)")
 MAPTAP_HINT_REGEX = re.compile(r"\bmaptap\.gg\b", re.IGNORECASE)
@@ -59,7 +55,6 @@ DEFAULT_GUILD_SETTINGS: Dict[str, Any] = {
     "channel_id": None,
     "admin_role_ids": [],
     "timezone": "Europe/London",
-
     "alerts": {
         "daily_post_enabled": True,
         "daily_scoreboard_enabled": True,
@@ -70,14 +65,12 @@ DEFAULT_GUILD_SETTINGS: Dict[str, Any] = {
         "pb_messages_enabled": True,
         "perfect_score_enabled": True,
     },
-
     "emojis": {
         "recorded": "<:maptapp:1476982463430660136>",
         "too_high": "❌",
         "rescan_ingested": "🔁",
         "config_issue": "⚠️",
     },
-
     "times": {
         "daily_post": "00:00",
         "daily_scoreboard": "23:30",
@@ -85,14 +78,12 @@ DEFAULT_GUILD_SETTINGS: Dict[str, Any] = {
         "rivalry": "14:00",
         "monthly_leaderboard": "00:10",
     },
-
     "minimum_days": {
         "this_week": 3,
         "this_month": 7,
         "all_time": 0,
         "date_range": 0,
     },
-
     "last_run": {
         "daily_post": None,
         "daily_scoreboard": None,
@@ -108,7 +99,7 @@ HEADERS = {
 }
 
 # =====================================================
-# KEEP ALIVE (Render)
+# KEEP ALIVE (Wispbyte)
 # =====================================================
 app = Flask("maptap")
 
@@ -129,28 +120,22 @@ def _gh_url(path: str) -> str:
 def github_load_json(path: str, default: Any) -> Tuple[Any, Optional[str]]:
     url = _gh_url(path)
     r = requests.get(url, headers=HEADERS, timeout=20)
-
     if r.status_code == 404:
         return default, None
-
     r.raise_for_status()
     payload = r.json()
     content_b64 = payload.get("content", "")
     content = base64.b64decode(content_b64).decode("utf-8") if content_b64 else ""
-
     if not content.strip():
         return default, payload.get("sha")
-
     return json.loads(content), payload.get("sha")
 
 def github_save_json(path: str, data: Any, sha: Optional[str], message: str) -> str:
     url = _gh_url(path)
     encoded = base64.b64encode(json.dumps(data, indent=2).encode("utf-8")).decode("utf-8")
-
     body: Dict[str, Any] = {"message": message, "content": encoded}
     if sha:
         body["sha"] = sha
-
     r = requests.put(url, headers=HEADERS, json=body, timeout=20)
     r.raise_for_status()
     new_sha = r.json().get("content", {}).get("sha")
@@ -174,62 +159,42 @@ def _normalize_hhmm(value: Any, fallback: str) -> str:
         return fallback
 
 def _normalize_guild_settings(raw: Any) -> Dict[str, Any]:
-    """
-    Takes raw settings for one guild and merges/normalises against DEFAULT_GUILD_SETTINGS.
-    Returns a clean, fully-populated settings dict.
-    """
     merged = DEFAULT_GUILD_SETTINGS.copy()
     if isinstance(raw, dict):
         merged.update(raw)
-
     if merged.get("channel_id") is not None:
         try:
             merged["channel_id"] = int(merged["channel_id"])
         except Exception:
             merged["channel_id"] = None
-
     merged["admin_role_ids"] = [
-        int(x) for x in merged.get("admin_role_ids", [])
-        if str(x).isdigit()
+        int(x) for x in merged.get("admin_role_ids", []) if str(x).isdigit()
     ]
-
-    # Validate timezone — fall back to London if invalid
     tz_str = merged.get("timezone", "Europe/London")
     try:
         ZoneInfo(tz_str)
     except Exception:
         merged["timezone"] = "Europe/London"
-
     merged["alerts"] = _merge_nested(DEFAULT_GUILD_SETTINGS["alerts"], merged.get("alerts"))
     merged["emojis"] = _merge_nested(DEFAULT_GUILD_SETTINGS["emojis"], merged.get("emojis"))
     merged["minimum_days"] = _merge_nested(DEFAULT_GUILD_SETTINGS["minimum_days"], merged.get("minimum_days"))
-
     times_in = _merge_nested(DEFAULT_GUILD_SETTINGS["times"], merged.get("times"))
     merged["times"] = {
         k: _normalize_hhmm(times_in.get(k), DEFAULT_GUILD_SETTINGS["times"][k])
         for k in DEFAULT_GUILD_SETTINGS["times"]
     }
-
     merged["last_run"] = _merge_nested(DEFAULT_GUILD_SETTINGS["last_run"], merged.get("last_run"))
     if not isinstance(merged["last_run"], dict):
         merged["last_run"] = DEFAULT_GUILD_SETTINGS["last_run"].copy()
-
     return merged
 
 def load_all_settings() -> Tuple[Dict[str, Any], Optional[str]]:
-    """Load the entire settings file. Returns {guild_id: settings_dict}, sha."""
     raw, sha = github_load_json(SETTINGS_PATH, {})
     if not isinstance(raw, dict):
         raw = {}
-
-    normalised = {}
-    for guild_id, guild_raw in raw.items():
-        normalised[str(guild_id)] = _normalize_guild_settings(guild_raw)
-
-    return normalised, sha
+    return {str(gid): _normalize_guild_settings(gr) for gid, gr in raw.items()}, sha
 
 def load_guild_settings(guild_id: str) -> Tuple[Dict[str, Any], Optional[str]]:
-    """Load settings for a single guild. Also returns the full-file sha for saving."""
     all_settings, sha = load_all_settings()
     return all_settings.get(str(guild_id), _normalize_guild_settings({})), sha
 
@@ -237,7 +202,6 @@ def save_all_settings(all_settings: Dict[str, Any], sha: Optional[str], message:
     return github_save_json(SETTINGS_PATH, all_settings, sha, message)
 
 def save_guild_settings(guild_id: str, guild_settings: Dict[str, Any], message: str) -> None:
-    """Load full file, update one guild's block, save back."""
     all_settings, sha = load_all_settings()
     all_settings[str(guild_id)] = guild_settings
     save_all_settings(all_settings, sha, message)
@@ -264,13 +228,11 @@ def pretty_day(date_key: str) -> str:
 
 def week_range(today: date) -> Tuple[date, date]:
     monday = today - timedelta(days=today.weekday())
-    sunday = monday + timedelta(days=6)
-    return monday, sunday
+    return monday, monday + timedelta(days=6)
 
 def month_range(today: date) -> Tuple[date, date]:
     first = today.replace(day=1)
-    last_day = calendar.monthrange(today.year, today.month)[1]
-    last = today.replace(day=last_day)
+    last = today.replace(day=calendar.monthrange(today.year, today.month)[1])
     return first, last
 
 def display_user(guild: Optional[discord.Guild], uid: str) -> str:
@@ -297,15 +259,9 @@ def compute_period_rows(
     start_d: Optional[date],
     end_d: Optional[date],
 ) -> Dict[str, Dict[str, int]]:
-    """
-    guild_scores is the scores dict for ONE guild: {date_key: {uid: {score: int}}}
-    Returns {uid: {'total': int, 'days': int}}
-    """
     totals: Dict[str, Dict[str, int]] = {}
-
     if not isinstance(guild_scores, dict):
         return totals
-
     for dkey, bucket in guild_scores.items():
         d = _safe_date(dkey)
         if not d:
@@ -316,31 +272,33 @@ def compute_period_rows(
             continue
         if not isinstance(bucket, dict):
             continue
-
         for uid, entry in bucket.items():
             try:
                 sc = int(entry.get("score", 0))
             except Exception:
                 continue
-
             totals.setdefault(uid, {"total": 0, "days": 0})
             totals[uid]["total"] += sc
             totals[uid]["days"] += 1
-
     return totals
 
 # =====================================================
 # GUILD-SCOPED DATA HELPERS
 # =====================================================
-def load_guild_scores(guild_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], Optional[str]]:
-    """
-    Returns (all_scores, guild_scores, sha).
-    guild_scores is the slice for this guild only.
-    You need all_scores + sha to write back.
-    """
+def load_all_scores() -> Tuple[Dict[str, Any], Optional[str]]:
     all_scores, sha = github_load_json(SCORES_PATH, {})
     if not isinstance(all_scores, dict):
         all_scores = {}
+    return all_scores, sha
+
+def load_all_users() -> Tuple[Dict[str, Any], Optional[str]]:
+    all_users, sha = github_load_json(USERS_PATH, {})
+    if not isinstance(all_users, dict):
+        all_users = {}
+    return all_users, sha
+
+def load_guild_scores(guild_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], Optional[str]]:
+    all_scores, sha = load_all_scores()
     guild_scores = all_scores.get(str(guild_id), {})
     if not isinstance(guild_scores, dict):
         guild_scores = {}
@@ -351,12 +309,7 @@ def save_guild_scores(guild_id: str, all_scores: Dict[str, Any], guild_scores: D
     return github_save_json(SCORES_PATH, all_scores, sha, message)
 
 def load_guild_users(guild_id: str) -> Tuple[Dict[str, Any], Dict[str, Any], Optional[str]]:
-    """
-    Returns (all_users, guild_users, sha).
-    """
-    all_users, sha = github_load_json(USERS_PATH, {})
-    if not isinstance(all_users, dict):
-        all_users = {}
+    all_users, sha = load_all_users()
     guild_users = all_users.get(str(guild_id), {})
     if not isinstance(guild_users, dict):
         guild_users = {}
@@ -388,10 +341,8 @@ def calculate_current_streak(guild_scores: Dict[str, Any], user_id: str, tz: Zon
             d = _safe_date(dkey)
             if d:
                 played.append(d)
-
     if not played:
         return 0
-
     played_set = set(played)
     d = datetime.now(tz).date()
     streak = 0
@@ -412,49 +363,29 @@ def calculate_all_time_rank(guild_users: Dict[str, Any], user_id: str) -> Tuple[
             rows.append((uid, avg))
         except Exception:
             pass
-
     rows.sort(key=lambda x: x[1], reverse=True)
     for i, (uid, _) in enumerate(rows, start=1):
         if uid == user_id:
             return i, len(rows)
-
     return len(rows), len(rows)
 
 def calculate_period_rank(
-    guild_scores: Dict[str, Any],
-    user_id: str,
-    start_d: date,
-    end_d: date,
+    guild_scores: Dict[str, Any], user_id: str, start_d: date, end_d: date,
 ) -> Tuple[Optional[int], int]:
     totals = compute_period_rows(guild_scores, start_d, end_d)
-
     rows = [
         (uid, round(v["total"] / v["days"]))
-        for uid, v in totals.items()
-        if v["days"] > 0
+        for uid, v in totals.items() if v["days"] > 0
     ]
     rows.sort(key=lambda x: x[1], reverse=True)
-
     for i, (uid, _) in enumerate(rows, start=1):
         if uid == user_id:
             return i, len(rows)
-
     return None, len(rows)
 
 def calculate_global_rank(user_id: str) -> Tuple[Optional[int], int]:
-    """
-    Flattens all guilds in users.json, deduplicates by user ID
-    (a user in multiple servers gets their scores averaged across guilds),
-    and returns (rank, total_players) for the given user_id.
-    Ranked by average score across all appearances.
-    """
-    all_users, _ = github_load_json(USERS_PATH, {})
-    if not isinstance(all_users, dict):
-        return None, 0
-
-    # {uid: [avg_score, avg_score, ...]} — one entry per guild they appear in
+    all_users, _ = load_all_users()
     global_avgs: Dict[str, List[float]] = {}
-
     for guild_id, guild_users in all_users.items():
         if not isinstance(guild_users, dict):
             continue
@@ -467,21 +398,15 @@ def calculate_global_rank(user_id: str) -> Tuple[Optional[int], int]:
                 global_avgs.setdefault(uid, []).append(avg)
             except Exception:
                 continue
-
     if not global_avgs:
         return None, 0
-
-    # Final score = mean of their per-guild averages
     rows: List[Tuple[str, float]] = [
-        (uid, sum(avgs) / len(avgs))
-        for uid, avgs in global_avgs.items()
+        (uid, sum(avgs) / len(avgs)) for uid, avgs in global_avgs.items()
     ]
     rows.sort(key=lambda x: x[1], reverse=True)
-
     for i, (uid, _) in enumerate(rows, start=1):
         if uid == user_id:
             return i, len(rows)
-
     return None, len(rows)
 
 # =====================================================
@@ -519,7 +444,6 @@ class MapTapBot(discord.Client):
                 print("✅ Synced commands globally")
         except Exception as e:
             print("⚠️ Command sync failed:", e)
-
         if not self.scheduler_tick.is_running():
             self.scheduler_tick.start()
             print("✅ scheduler_tick started in setup_hook()")
@@ -527,12 +451,29 @@ class MapTapBot(discord.Client):
     @tasks.loop(minutes=1)
     async def scheduler_tick(self):
         """
-        Runs every minute. Loads all guild settings once, iterates over each guild,
-        checks whether any scheduled action is due for that guild's local time,
-        fires if so, then saves the updated last_run block back in one write.
+        Loads settings, scores, and users ONCE per tick.
+        Iterates all guilds using pre-loaded data.
+        Saves each file at most once at the end of the tick.
+        = 4 GitHub API calls per tick regardless of guild count.
         """
-        all_settings, sha = load_all_settings()
-        fired_any = False
+        try:
+            all_settings, settings_sha = load_all_settings()
+        except Exception as e:
+            print("⚠️ scheduler_tick: failed to load settings:", e)
+            return
+        try:
+            all_scores, scores_sha = load_all_scores()
+        except Exception as e:
+            print("⚠️ scheduler_tick: failed to load scores:", e)
+            return
+        try:
+            all_users, users_sha = load_all_users()
+        except Exception as e:
+            print("⚠️ scheduler_tick: failed to load users:", e)
+            return
+
+        settings_dirty = False
+        scores_dirty = False
 
         for guild_id, settings in all_settings.items():
             if not settings.get("enabled", True):
@@ -547,7 +488,9 @@ class MapTapBot(discord.Client):
             last_run = settings.get("last_run", {})
             alerts = settings.get("alerts", {})
 
-            guild_fired = False
+            guild_scores = all_scores.get(str(guild_id), {})
+            if not isinstance(guild_scores, dict):
+                guild_scores = {}
 
             # Daily Post
             if (
@@ -555,9 +498,13 @@ class MapTapBot(discord.Client):
                 and now_hm == times.get("daily_post")
                 and last_run.get("daily_post") != today
             ):
-                await do_daily_post(guild_id, settings)
-                all_settings[guild_id]["last_run"]["daily_post"] = today
-                guild_fired = True
+                try:
+                    await do_daily_post(guild_id, settings)
+                except Exception as e:
+                    print(f"⚠️ daily_post failed for guild {guild_id}:", e)
+                finally:
+                    all_settings[guild_id]["last_run"]["daily_post"] = today
+                    settings_dirty = True
 
             # Daily Scoreboard
             if (
@@ -565,20 +512,38 @@ class MapTapBot(discord.Client):
                 and now_hm == times.get("daily_scoreboard")
                 and last_run.get("daily_scoreboard") != today
             ):
-                await do_daily_scoreboard(guild_id, settings)
-                all_settings[guild_id]["last_run"]["daily_scoreboard"] = today
-                guild_fired = True
+                try:
+                    await do_daily_scoreboard(guild_id, settings, guild_scores)
+                except Exception as e:
+                    print(f"⚠️ daily_scoreboard failed for guild {guild_id}:", e)
+                finally:
+                    all_settings[guild_id]["last_run"]["daily_scoreboard"] = today
+                    settings_dirty = True
 
-            # Weekly Roundup (Sundays in the guild's local time)
+                # Cleanup old scores for this guild
+                cutoff = now.date() - timedelta(days=CLEANUP_DAYS)
+                cleaned = {
+                    d: v for d, v in guild_scores.items()
+                    if (dd := _safe_date(d)) and dd >= cutoff
+                }
+                if cleaned != guild_scores:
+                    all_scores[str(guild_id)] = cleaned
+                    scores_dirty = True
+
+            # Weekly Roundup (Sundays)
             if (
                 alerts.get("weekly_roundup_enabled", True)
                 and now.weekday() == 6
                 and now_hm == times.get("weekly_roundup")
                 and last_run.get("weekly_roundup") != today
             ):
-                await do_weekly_roundup(guild_id, settings)
-                all_settings[guild_id]["last_run"]["weekly_roundup"] = today
-                guild_fired = True
+                try:
+                    await do_weekly_roundup(guild_id, settings, guild_scores)
+                except Exception as e:
+                    print(f"⚠️ weekly_roundup failed for guild {guild_id}:", e)
+                finally:
+                    all_settings[guild_id]["last_run"]["weekly_roundup"] = today
+                    settings_dirty = True
 
             # Rivalry Alert
             if (
@@ -587,30 +552,40 @@ class MapTapBot(discord.Client):
                 and last_run.get("rivalry") != today
             ):
                 try:
-                    await do_rivalry_alert(guild_id, settings)
+                    await do_rivalry_alert(guild_id, settings, guild_scores)
+                except Exception as e:
+                    print(f"⚠️ rivalry_alert failed for guild {guild_id}:", e)
                 finally:
                     all_settings[guild_id]["last_run"]["rivalry"] = today
-                    guild_fired = True
+                    settings_dirty = True
 
-            # Monthly Leaderboard (1st of month in guild's local time)
+            # Monthly Leaderboard (1st of month)
             if (
                 alerts.get("monthly_leaderboard_enabled", True)
                 and now.day == 1
                 and now_hm == times.get("monthly_leaderboard")
                 and last_run.get("monthly_leaderboard") != today
             ):
-                await do_monthly_leaderboard(guild_id, settings)
-                all_settings[guild_id]["last_run"]["monthly_leaderboard"] = today
-                guild_fired = True
+                try:
+                    await do_monthly_leaderboard(guild_id, settings, guild_scores)
+                except Exception as e:
+                    print(f"⚠️ monthly_leaderboard failed for guild {guild_id}:", e)
+                finally:
+                    all_settings[guild_id]["last_run"]["monthly_leaderboard"] = today
+                    settings_dirty = True
 
-            if guild_fired:
-                fired_any = True
-
-        if fired_any:
+        # One write per file at the end — not per guild
+        if settings_dirty:
             try:
-                save_all_settings(all_settings, sha, f"MapTap: last_run update")
+                save_all_settings(all_settings, settings_sha, "MapTap: last_run update")
             except Exception as e:
-                print("⚠️ Failed to save last_run:", e)
+                print("⚠️ Failed to save settings after tick:", e)
+
+        if scores_dirty:
+            try:
+                github_save_json(SCORES_PATH, all_scores, scores_sha, "MapTap: cleanup")
+            except Exception as e:
+                print("⚠️ Failed to save scores after cleanup:", e)
 
 client = MapTapBot()
 
@@ -657,30 +632,23 @@ async def react_safe(msg: discord.Message, emoji: str, fallback: str = "✅"):
 # =====================================================
 # SETTINGS UI
 # =====================================================
-
 class ChannelSelect(discord.ui.ChannelSelect):
     def __init__(self, parent: "MapTapSettingsView"):
         self.parent_view = parent
         super().__init__(
             placeholder="Select MapTap channel…",
             channel_types=[discord.ChannelType.text],
-            min_values=1,
-            max_values=1,
+            min_values=1, max_values=1,
         )
 
     async def callback(self, interaction: discord.Interaction):
-        ch = self.values[0]
-        self.parent_view.settings["channel_id"] = ch.id
+        self.parent_view.settings["channel_id"] = self.values[0].id
         await self.parent_view.save_and_refresh(interaction, "MapTap: update channel")
 
 class AdminRoleSelect(discord.ui.RoleSelect):
     def __init__(self, parent: "MapTapSettingsView"):
         self.parent_view = parent
-        super().__init__(
-            placeholder="Select admin roles…",
-            min_values=0,
-            max_values=10,
-        )
+        super().__init__(placeholder="Select admin roles…", min_values=0, max_values=10)
 
     async def callback(self, interaction: discord.Interaction):
         self.parent_view.settings["admin_role_ids"] = [r.id for r in self.values]
@@ -697,7 +665,6 @@ class TimeSettingsModal(discord.ui.Modal, title="MapTap Times"):
         super().__init__()
         self.settings_view = settings_view
         t = settings_view.settings.get("times", DEFAULT_GUILD_SETTINGS["times"])
-
         self.daily_post.default = str(t.get("daily_post", "00:00"))
         self.daily_scoreboard.default = str(t.get("daily_scoreboard", "23:30"))
         self.weekly_roundup.default = str(t.get("weekly_roundup", "23:45"))
@@ -712,17 +679,14 @@ class TimeSettingsModal(discord.ui.Modal, title="MapTap Times"):
             "rivalry": self.rivalry.value.strip(),
             "monthly_leaderboard": self.monthly_leaderboard.value.strip(),
         }
-
         for k, v in values.items():
             try:
                 datetime.strptime(v, "%H:%M")
             except Exception:
                 await interaction.response.send_message(
-                    f"❌ Invalid time for **{k}**. Use HH:MM (24h), e.g. 23:30",
-                    ephemeral=True,
+                    f"❌ Invalid time for **{k}**. Use HH:MM (24h), e.g. 23:30", ephemeral=True,
                 )
                 return
-
         self.settings_view.settings["times"] = values
         await self.settings_view.save_and_refresh(interaction, "MapTap: update times")
 
@@ -743,43 +707,35 @@ class ConfigureAlertsView(discord.ui.View):
 
     @discord.ui.button(label="Daily post", style=discord.ButtonStyle.secondary)
     async def daily_post(self, interaction: discord.Interaction, _):
-        self.toggle("daily_post_enabled")
-        await self._ack(interaction)
+        self.toggle("daily_post_enabled"); await self._ack(interaction)
 
     @discord.ui.button(label="Daily scoreboard", style=discord.ButtonStyle.secondary)
     async def daily_scoreboard(self, interaction: discord.Interaction, _):
-        self.toggle("daily_scoreboard_enabled")
-        await self._ack(interaction)
+        self.toggle("daily_scoreboard_enabled"); await self._ack(interaction)
 
     @discord.ui.button(label="Weekly roundup", style=discord.ButtonStyle.secondary)
     async def weekly_roundup(self, interaction: discord.Interaction, _):
-        self.toggle("weekly_roundup_enabled")
-        await self._ack(interaction)
+        self.toggle("weekly_roundup_enabled"); await self._ack(interaction)
 
     @discord.ui.button(label="Rivalry alerts", style=discord.ButtonStyle.secondary)
     async def rivalry(self, interaction: discord.Interaction, _):
-        self.toggle("rivalry_enabled")
-        await self._ack(interaction)
+        self.toggle("rivalry_enabled"); await self._ack(interaction)
 
     @discord.ui.button(label="Monthly leaderboard", style=discord.ButtonStyle.secondary)
     async def monthly_lb(self, interaction: discord.Interaction, _):
-        self.toggle("monthly_leaderboard_enabled")
-        await self._ack(interaction)
+        self.toggle("monthly_leaderboard_enabled"); await self._ack(interaction)
 
     @discord.ui.button(label="Zero-score roasts", style=discord.ButtonStyle.secondary)
     async def zero(self, interaction: discord.Interaction, _):
-        self.toggle("zero_score_roasts_enabled")
-        await self._ack(interaction)
+        self.toggle("zero_score_roasts_enabled"); await self._ack(interaction)
 
     @discord.ui.button(label="Personal best messages", style=discord.ButtonStyle.secondary)
     async def pb(self, interaction: discord.Interaction, _):
-        self.toggle("pb_messages_enabled")
-        await self._ack(interaction)
+        self.toggle("pb_messages_enabled"); await self._ack(interaction)
 
     @discord.ui.button(label="Perfect score messages", style=discord.ButtonStyle.secondary)
     async def perfect(self, interaction: discord.Interaction, _):
-        self.toggle("perfect_score_enabled")
-        await self._ack(interaction)
+        self.toggle("perfect_score_enabled"); await self._ack(interaction)
 
     @discord.ui.button(label="Save alerts", style=discord.ButtonStyle.primary)
     async def save(self, interaction: discord.Interaction, _):
@@ -792,7 +748,6 @@ class MapTapSettingsView(discord.ui.View):
         super().__init__(timeout=300)
         self.settings = settings
         self.guild_id = guild_id
-
         self.add_item(ChannelSelect(self))
         self.add_item(AdminRoleSelect(self))
 
@@ -800,9 +755,7 @@ class MapTapSettingsView(discord.ui.View):
         a = self.settings.get("alerts", {})
         t = self.settings.get("times", {})
         tz_str = self.settings.get("timezone", "Europe/London")
-
         e = discord.Embed(title="🗺️ MapTap Settings", color=0xF1C40F)
-
         e.add_field(
             name="🧭 Status",
             value=(
@@ -818,7 +771,6 @@ class MapTapSettingsView(discord.ui.View):
             ),
             inline=False,
         )
-
         e.add_field(
             name=f"🕒 Times ({tz_str})",
             value=(
@@ -830,10 +782,8 @@ class MapTapSettingsView(discord.ui.View):
             ),
             inline=False,
         )
-
         channel = self.settings.get("channel_id")
         roles = self.settings.get("admin_role_ids", [])
-
         e.add_field(
             name="🔒 Access",
             value=(
@@ -842,7 +792,6 @@ class MapTapSettingsView(discord.ui.View):
             ),
             inline=False,
         )
-
         e.set_footer(text="Changes save immediately. Use /settimezone to change timezone.")
         return e
 
@@ -875,10 +824,7 @@ class MapTapSettingsView(discord.ui.View):
 # =====================================================
 @client.event
 async def on_message(message: discord.Message):
-    if message.author.bot:
-        return
-
-    if not message.guild:
+    if message.author.bot or not message.guild:
         return
 
     guild_id = str(message.guild.id)
@@ -886,10 +832,8 @@ async def on_message(message: discord.Message):
 
     if not settings.get("enabled", True):
         return
-
     if message.channel.id != settings.get("channel_id"):
         return
-
     if not MAPTAP_HINT_REGEX.search(message.content or ""):
         return
 
@@ -907,20 +851,27 @@ async def on_message(message: discord.Message):
     dkey = today_key(msg_time, tz)
     uid = str(message.author.id)
 
-    all_scores, guild_scores, scores_sha = load_guild_scores(guild_id)
-    all_users, guild_users, users_sha = load_guild_users(guild_id)
+    try:
+        all_scores, guild_scores, scores_sha = load_guild_scores(guild_id)
+    except Exception as e:
+        print(f"⚠️ on_message: failed to load scores for guild {guild_id}:", e)
+        return
+
+    try:
+        all_users, guild_users, users_sha = load_guild_users(guild_id)
+    except Exception as e:
+        print(f"⚠️ on_message: failed to load users for guild {guild_id}:", e)
+        return
 
     guild_scores.setdefault(dkey, {})
     guild_users.setdefault(uid, default_user_stats())
 
-    # Ensure keys exist for older entries
     guild_users[uid].setdefault("personal_best", {"score": 0, "date": "N/A"})
     guild_users[uid].setdefault("personal_low", {"score": 100000, "date": "N/A"})
     guild_users[uid].setdefault("best_streak", 0)
     guild_users[uid].setdefault("total_points", 0)
     guild_users[uid].setdefault("days_played", 0)
 
-    # Replace same-day entry without double-counting days
     if uid in guild_scores[dkey]:
         try:
             guild_users[uid]["total_points"] -= int(guild_scores[dkey][uid].get("score", 0))
@@ -934,55 +885,71 @@ async def on_message(message: discord.Message):
 
     alerts = settings.get("alerts", DEFAULT_GUILD_SETTINGS["alerts"])
 
-    # Zero roast
     if alerts.get("zero_score_roasts_enabled", True) and has_zero_round(message.content or ""):
-        await message.channel.send(
-            random.choice([
-                f"💀 {message.author.mention} dropped a **0** round",
-                f"🗺️ {message.author.mention} learned nothing today",
-            ])
-        )
+        try:
+            await message.channel.send(
+                random.choice([
+                    f"💀 {message.author.mention} dropped a **0** round",
+                    f"🗺️ {message.author.mention} learned nothing today",
+                ])
+            )
+        except Exception as e:
+            print(f"⚠️ zero roast send failed:", e)
 
-    # Perfect score
     if alerts.get("perfect_score_enabled", True) and score >= MAX_SCORE:
-        await message.channel.send(
-            f"🎯 **Perfect Score!** {message.author.mention} just hit **{score}**!"
-        )
+        try:
+            await message.channel.send(
+                f"🎯 **Perfect Score!** {message.author.mention} just hit **{score}**!"
+            )
+        except Exception as e:
+            print(f"⚠️ perfect score send failed:", e)
 
-    # Personal Best (highest)
     old_pb = int(guild_users[uid]["personal_best"].get("score", 0))
     if score > old_pb:
         guild_users[uid]["personal_best"] = {"score": score, "date": dkey}
         if alerts.get("pb_messages_enabled", True) and old_pb > 0:
-            await message.channel.send(
-                f"🚀 **New Personal Best!**\n"
-                f"{message.author.mention} just beat their previous record of **{old_pb}** with **{score}**!"
-            )
+            try:
+                await message.channel.send(
+                    f"🚀 **New Personal Best!**\n"
+                    f"{message.author.mention} just beat their previous record of **{old_pb}** with **{score}**!"
+                )
+            except Exception as e:
+                print(f"⚠️ PB send failed:", e)
 
-    # Personal Low (lowest)
     old_low = int(guild_users[uid]["personal_low"].get("score", 100000))
     if score < old_low:
         guild_users[uid]["personal_low"] = {"score": score, "date": dkey}
         if alerts.get("pb_messages_enabled", True) and old_low != 100000:
-            await message.channel.send(
-                f"🧯 **New Personal Low!**\n"
-                f"{message.author.mention} just went lower than their previous worst (**{old_low}**) with **{score}** 😭"
-            )
+            try:
+                await message.channel.send(
+                    f"🧯 **New Personal Low!**\n"
+                    f"{message.author.mention} just went lower than their previous worst (**{old_low}**) with **{score}** 😭"
+                )
+            except Exception as e:
+                print(f"⚠️ personal low send failed:", e)
 
-    # Streaks
     cur = calculate_current_streak(guild_scores, uid, tz)
     try:
         guild_users[uid]["best_streak"] = max(int(guild_users[uid].get("best_streak", 0)), int(cur))
     except Exception:
         guild_users[uid]["best_streak"] = cur
 
-    save_guild_scores(guild_id, all_scores, guild_scores, scores_sha, "MapTap score update")
-    save_guild_users(guild_id, all_users, guild_users, users_sha, "MapTap user update")
+    try:
+        save_guild_scores(guild_id, all_scores, guild_scores, scores_sha, "MapTap score update")
+    except Exception as e:
+        print(f"⚠️ on_message: failed to save scores for guild {guild_id}:", e)
 
+    try:
+        save_guild_users(guild_id, all_users, guild_users, users_sha, "MapTap user update")
+    except Exception as e:
+        print(f"⚠️ on_message: failed to save users for guild {guild_id}:", e)
+
+    # Reaction always fires last — a failed save logs but doesn't eat the reaction
     await react_safe(message, settings["emojis"]["recorded"], "✅")
 
 # =====================================================
 # SCHEDULED ACTIONS
+# (accept pre-loaded guild_scores — no extra GitHub calls per action)
 # =====================================================
 def build_daily_prompt() -> str:
     return (
@@ -996,10 +963,8 @@ def build_daily_scoreboard_text(date_key: str, rows: List[Tuple[str, int]]) -> s
         pretty = datetime.strptime(date_key, "%Y-%m-%d").strftime("%A %d %B")
     except Exception:
         pretty = date_key
-
     if not rows:
         return f"🗺️ **MapTap — Daily Scores**\n*{pretty}*\n\n😶 No scores today."
-
     lines = [f"{i}. <@{uid}> — **{score}**" for i, (uid, score) in enumerate(rows, start=1)]
     return (
         f"🗺️ **MapTap — Daily Scores**\n*{pretty}*\n\n"
@@ -1014,7 +979,6 @@ def build_weekly_roundup_text(mon: date, sun: date, rows: List[Tuple[str, int, i
     )
     if not rows:
         return header + "😶 No scores this week."
-
     lines = [
         f"{i}. <@{uid}> — **{total} pts** ({days}/7 days)"
         for i, (uid, total, days) in enumerate(rows, start=1)
@@ -1026,17 +990,13 @@ async def do_daily_post(guild_id: str, settings: Dict[str, Any]):
     if ch:
         await ch.send(build_daily_prompt())
 
-async def do_daily_scoreboard(guild_id: str, settings: Dict[str, Any]):
+async def do_daily_scoreboard(guild_id: str, settings: Dict[str, Any], guild_scores: Dict[str, Any]):
     ch = get_configured_channel(settings)
     if not ch:
         return
-
     tz = get_guild_tz(settings)
-    _, guild_scores, scores_sha = load_guild_scores(guild_id)
-
     today = datetime.now(tz).date().isoformat()
     bucket = guild_scores.get(today, {})
-
     rows: List[Tuple[str, int]] = []
     if isinstance(bucket, dict):
         for uid, entry in bucket.items():
@@ -1044,65 +1004,41 @@ async def do_daily_scoreboard(guild_id: str, settings: Dict[str, Any]):
                 rows.append((uid, int(entry["score"])))
             except Exception:
                 pass
-
     rows.sort(key=lambda x: x[1], reverse=True)
     await ch.send(build_daily_scoreboard_text(today, rows))
 
-    # Cleanup old scores for this guild only
-    all_scores, _, sha = load_guild_scores(guild_id)
-    cutoff = datetime.now(tz).date() - timedelta(days=CLEANUP_DAYS)
-    cleaned = {d: v for d, v in guild_scores.items() if (dd := _safe_date(d)) and dd >= cutoff}
-
-    if cleaned != guild_scores:
-        save_guild_scores(guild_id, all_scores, cleaned, sha, f"MapTap cleanup guild {guild_id}")
-
-async def do_weekly_roundup(guild_id: str, settings: Dict[str, Any]):
+async def do_weekly_roundup(guild_id: str, settings: Dict[str, Any], guild_scores: Dict[str, Any]):
     ch = get_configured_channel(settings)
     if not ch:
         return
-
     tz = get_guild_tz(settings)
-    _, guild_scores, _ = load_guild_scores(guild_id)
-
     today = datetime.now(tz).date()
     mon, sun = week_range(today)
-
     weekly = compute_period_rows(guild_scores, mon, sun)
-
     rows: List[Tuple[str, int, int]] = [
-        (uid, int(v["total"]), int(v["days"]))
-        for uid, v in weekly.items()
-        if v["days"] > 0
+        (uid, int(v["total"]), int(v["days"])) for uid, v in weekly.items() if v["days"] > 0
     ]
     rows.sort(key=lambda x: x[1], reverse=True)
     await ch.send(build_weekly_roundup_text(mon, sun, rows))
 
-async def do_monthly_leaderboard(guild_id: str, settings: Dict[str, Any]):
+async def do_monthly_leaderboard(guild_id: str, settings: Dict[str, Any], guild_scores: Dict[str, Any]):
     ch = get_configured_channel(settings)
     if not ch:
         return
-
     tz = get_guild_tz(settings)
-    _, guild_scores, _ = load_guild_scores(guild_id)
-
     today = datetime.now(tz).date()
     start_d, end_d = month_range(today)
-
     totals = compute_period_rows(guild_scores, start_d, end_d)
     min_days = int(settings.get("minimum_days", {}).get("this_month", 0))
-
     rows: List[Tuple[str, int]] = []
     for uid, v in totals.items():
         if v["days"] < min_days:
             continue
-        avg = round(v["total"] / v["days"])
-        rows.append((uid, avg))
-
+        rows.append((uid, round(v["total"] / v["days"])))
     rows.sort(key=lambda x: x[1], reverse=True)
     rows = rows[:10]
     if not rows:
         return
-
     lines = [f"{i}. <@{uid}> — **{avg}**" for i, (uid, avg) in enumerate(rows, 1)]
     await ch.send(
         "🏆 **Monthly MapTap Leaderboard**\n\n"
@@ -1110,31 +1046,22 @@ async def do_monthly_leaderboard(guild_id: str, settings: Dict[str, Any]):
         + "\n\n*Ranked by average score this month*"
     )
 
-async def do_rivalry_alert(guild_id: str, settings: Dict[str, Any]):
+async def do_rivalry_alert(guild_id: str, settings: Dict[str, Any], guild_scores: Dict[str, Any]):
     ch = get_configured_channel(settings)
     if not ch:
         return
-
     tz = get_guild_tz(settings)
-    _, guild_scores, _ = load_guild_scores(guild_id)
-
     today = datetime.now(tz).date()
     mon, _ = week_range(today)
-
     totals = compute_period_rows(guild_scores, mon, today)
     if len(totals) < RIVALRY_MIN_PLAYERS:
         return
-
     leaderboard: List[Tuple[str, int]] = [
-        (uid, int(v["total"]))
-        for uid, v in totals.items()
-        if v["days"] > 0
+        (uid, int(v["total"])) for uid, v in totals.items() if v["days"] > 0
     ]
     leaderboard.sort(key=lambda x: x[1], reverse=True)
-
     best_pair = None
     best_diff = None
-
     for i in range(len(leaderboard) - 1):
         uid_a, total_a = leaderboard[i]
         uid_b, total_b = leaderboard[i + 1]
@@ -1144,13 +1071,10 @@ async def do_rivalry_alert(guild_id: str, settings: Dict[str, Any]):
         if diff <= RIVALRY_THRESHOLD and (best_diff is None or diff < best_diff):
             best_diff = diff
             best_pair = (uid_a, total_a, uid_b, total_b)
-
     if not best_pair:
         return
-
     uid_a, total_a, uid_b, total_b = best_pair
     diff = int(total_a) - int(total_b)
-
     await ch.send(
         "⚔️ **Rivalry Alert!**\n"
         f"<@{uid_b}> is only **{diff} points** behind <@{uid_a}> this week…\n"
@@ -1161,21 +1085,17 @@ async def do_rivalry_alert(guild_id: str, settings: Dict[str, Any]):
 # SLASH COMMANDS
 # =====================================================
 
-# /settimezone — with autocomplete
 @client.tree.command(name="settimezone", description="Set your server's timezone")
 @app_commands.describe(timezone="Start typing to search — e.g. 'London', 'New York', 'Tokyo'")
 async def settimezone(interaction: discord.Interaction, timezone: str):
     if not isinstance(interaction.user, discord.Member):
         await interaction.response.send_message("❌ Server only.", ephemeral=True)
         return
-
     guild_id = str(interaction.guild_id)
     settings, _ = load_guild_settings(guild_id)
-
     if not has_admin_access(interaction.user, settings):
         await interaction.response.send_message("❌ You don't have permission to do that.", ephemeral=True)
         return
-
     try:
         ZoneInfo(timezone)
     except (ZoneInfoNotFoundError, Exception):
@@ -1184,10 +1104,8 @@ async def settimezone(interaction: discord.Interaction, timezone: str):
             ephemeral=True,
         )
         return
-
     settings["timezone"] = timezone
     save_guild_settings(guild_id, settings, f"MapTap: set timezone {timezone}")
-
     await interaction.response.send_message(
         f"✅ Timezone set to **{timezone}**. All scheduled times will now use this timezone.",
         ephemeral=True,
@@ -1199,7 +1117,6 @@ async def timezone_autocomplete(interaction: discord.Interaction, current: str) 
     if current:
         matches = [tz for tz in all_tz if current.lower() in tz.lower()]
     else:
-        # Show some sensible defaults before the user has typed anything
         matches = [
             "Europe/London", "Europe/Paris", "Europe/Berlin", "Europe/Amsterdam",
             "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
@@ -1209,42 +1126,33 @@ async def timezone_autocomplete(interaction: discord.Interaction, current: str) 
     return [app_commands.Choice(name=tz, value=tz) for tz in matches[:25]]
 
 
-# /mymaptap
 @client.tree.command(name="mymaptap", description="View your MapTap stats")
 async def mymaptap(interaction: discord.Interaction):
     if not interaction.guild_id:
         await interaction.response.send_message("❌ Server only.", ephemeral=True)
         return
-
     guild_id = str(interaction.guild_id)
     settings, _ = load_guild_settings(guild_id)
     tz = get_guild_tz(settings)
-
     _, guild_users, _ = load_guild_users(guild_id)
     _, guild_scores, _ = load_guild_scores(guild_id)
-
     uid = str(interaction.user.id)
     stats = guild_users.get(uid)
-
     if not stats:
         await interaction.response.send_message("🗺️ You don't have any MapTap scores yet.", ephemeral=True)
         return
-
     stats.setdefault("personal_best", {"score": 0, "date": "N/A"})
     stats.setdefault("personal_low", {"score": 100000, "date": "N/A"})
     stats.setdefault("best_streak", 0)
     stats.setdefault("total_points", 0)
     stats.setdefault("days_played", 0)
-
     rank, total_players = calculate_all_time_rank(guild_users, uid)
     current_streak = calculate_current_streak(guild_scores, uid, tz)
     average_score = round(int(stats["total_points"]) / max(1, int(stats["days_played"])))
-
     today = datetime.now(tz).date()
     week_start = today - timedelta(days=today.weekday())
     week_rank, week_total = calculate_period_rank(guild_scores, uid, week_start, today)
     global_rank, global_total = calculate_global_rank(uid)
-
     pb = stats["personal_best"]
     pb_date = pb.get("date", "N/A")
     if pb_date != "N/A":
@@ -1252,7 +1160,6 @@ async def mymaptap(interaction: discord.Interaction):
             pb_date = datetime.strptime(pb_date, "%Y-%m-%d").strftime("%d %b %Y")
         except Exception:
             pass
-
     pl = stats["personal_low"]
     low_score = int(pl.get("score", 100000))
     low_date = pl.get("date", "N/A")
@@ -1261,16 +1168,10 @@ async def mymaptap(interaction: discord.Interaction):
             low_date = datetime.strptime(low_date, "%Y-%m-%d").strftime("%d %b %Y")
         except Exception:
             pass
-
     low_line = "Personal Low: **—**"
     if low_score != 100000:
         low_line = f"Personal Low: **{low_score}** ({low_date})"
-
-    embed = discord.Embed(
-        title=f"🗺️ MapTap Stats — {interaction.user.display_name}",
-        color=0x2ECC71,
-    )
-
+    embed = discord.Embed(title=f"🗺️ MapTap Stats — {interaction.user.display_name}", color=0x2ECC71)
     embed.add_field(
         name="📊 Server Rankings",
         value=(
@@ -1279,18 +1180,11 @@ async def mymaptap(interaction: discord.Interaction):
         ),
         inline=False,
     )
-
-    global_rank_line = (
-        f"🌍 Global Rank: **#{global_rank} of {global_total}**"
-        if global_rank else "🌍 Global Rank: **—**"
-    )
-
     embed.add_field(
         name="🌐 Global",
-        value=global_rank_line,
+        value=f"🌍 Global Rank: **#{global_rank} of {global_total}**" if global_rank else "🌍 Global Rank: **—**",
         inline=False,
     )
-
     embed.add_field(
         name="⭐ Personal Records",
         value=(
@@ -1301,7 +1195,6 @@ async def mymaptap(interaction: discord.Interaction):
         ),
         inline=False,
     )
-
     embed.add_field(
         name="📈 Overall Stats",
         value=(
@@ -1311,29 +1204,23 @@ async def mymaptap(interaction: discord.Interaction):
         ),
         inline=False,
     )
-
     await interaction.response.send_message(embed=embed)
 
 
-# /maptapsettings
 @client.tree.command(name="maptapsettings", description="Configure MapTap settings")
 async def maptapsettings(interaction: discord.Interaction):
     if not isinstance(interaction.user, discord.Member):
         await interaction.response.send_message("❌ This command can only be used in a server.", ephemeral=True)
         return
-
     guild_id = str(interaction.guild_id)
     settings, _ = load_guild_settings(guild_id)
-
     if not has_admin_access(interaction.user, settings):
         await interaction.response.send_message("❌ You don't have permission to configure MapTap.", ephemeral=True)
         return
-
     view = MapTapSettingsView(settings, guild_id)
     await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
 
 
-# /leaderboard
 class LeaderboardSelect(discord.ui.Select):
     def __init__(self, guild_id: str, settings: Dict[str, Any]):
         self.guild_id = guild_id
@@ -1349,36 +1236,28 @@ class LeaderboardSelect(discord.ui.Select):
         scope = self.values[0]
         tz = get_guild_tz(self.settings)
         _, guild_scores, _ = load_guild_scores(self.guild_id)
-
         today = datetime.now(tz).date()
         start_d = end_d = None
-
         if scope == "this_week":
             start_d = today - timedelta(days=today.weekday())
             end_d = today
         elif scope == "this_month":
             start_d = today.replace(day=1)
             end_d = today
-
         totals = compute_period_rows(guild_scores, start_d, end_d)
         min_days = int(self.settings.get("minimum_days", {}).get(scope, 0))
-
         rows: List[Tuple[str, int]] = []
         for uid, v in totals.items():
             if v["days"] < min_days:
                 continue
-            avg = round(v["total"] / v["days"])
-            rows.append((uid, avg))
-
+            rows.append((uid, round(v["total"] / v["days"])))
         rows.sort(key=lambda x: x[1], reverse=True)
         rows = rows[:20]
-
         embed = discord.Embed(
             title="🗺️ MapTap Leaderboard",
             description=f"*{scope.replace('_', ' ').title()}*",
             color=0x3498DB,
         )
-
         if not rows:
             embed.add_field(name="No data", value="No eligible scores for this period.", inline=False)
         else:
@@ -1387,7 +1266,6 @@ class LeaderboardSelect(discord.ui.Select):
                 for i, (uid, avg) in enumerate(rows, start=1)
             ]
             embed.add_field(name="Top Players (avg score)", value="\n".join(lines), inline=False)
-
         await interaction.response.edit_message(embed=embed, view=self.view)
 
 class LeaderboardView(discord.ui.View):
@@ -1400,91 +1278,65 @@ async def leaderboard(interaction: discord.Interaction):
     if not interaction.guild_id:
         await interaction.response.send_message("❌ Server only.", ephemeral=True)
         return
-
     guild_id = str(interaction.guild_id)
     settings, _ = load_guild_settings(guild_id)
-
     await interaction.response.send_message(
-        embed=discord.Embed(
-            title="🗺️ MapTap Leaderboard",
-            description="Select a leaderboard to view",
-            color=0x3498DB,
-        ),
+        embed=discord.Embed(title="🗺️ MapTap Leaderboard", description="Select a leaderboard to view", color=0x3498DB),
         view=LeaderboardView(guild_id, settings),
     )
 
 
-# /rescan
 @client.tree.command(name="rescan", description="Re-scan ALL MapTap posts and rebuild stats (admin)")
 async def rescan(interaction: discord.Interaction):
     if not isinstance(interaction.user, discord.Member):
         await interaction.response.send_message("❌ Server only.", ephemeral=True)
         return
-
     guild_id = str(interaction.guild_id)
     settings, _ = load_guild_settings(guild_id)
-
     if not has_admin_access(interaction.user, settings):
         await interaction.response.send_message("❌ No permission", ephemeral=True)
         return
-
     channel = get_configured_channel(settings)
     if not channel:
         await interaction.response.send_message("❌ MapTap channel not set", ephemeral=True)
         return
-
     tz = get_guild_tz(settings)
     await interaction.response.send_message("🔁 Full rescan started… this may take a moment.", ephemeral=True)
-
     guild_scores: Dict[str, Dict[str, Dict[str, Any]]] = {}
     guild_users: Dict[str, Dict[str, Any]] = {}
     ingested = 0
-
     async for msg in channel.history(limit=None, oldest_first=True):
         if msg.author.bot:
             continue
         if not MAPTAP_HINT_REGEX.search(msg.content or ""):
             continue
-
         m = SCORE_REGEX.search(msg.content or "")
         if not m:
             continue
-
         score = int(m.group(1))
         if score > MAX_SCORE:
             continue
-
         msg_time = msg.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
         dkey = today_key(msg_time, tz)
         uid = str(msg.author.id)
-
         guild_scores.setdefault(dkey, {})
         guild_scores[dkey][uid] = {"score": score, "updated_at": msg_time.isoformat()}
-
         guild_users.setdefault(uid, default_user_stats())
         guild_users[uid]["total_points"] += score
         ingested += 1
-
         if score > int(guild_users[uid]["personal_best"]["score"]):
             guild_users[uid]["personal_best"] = {"score": score, "date": dkey}
-
         if score < int(guild_users[uid]["personal_low"]["score"]):
             guild_users[uid]["personal_low"] = {"score": score, "date": dkey}
-
         await react_safe(msg, settings["emojis"]["rescan_ingested"], "🔁")
-
     for uid in guild_users:
         played_days = {dkey for dkey, bucket in guild_scores.items() if uid in bucket}
         guild_users[uid]["days_played"] = len(played_days)
         guild_users[uid]["best_streak"] = calculate_current_streak(guild_scores, uid, tz)
-
-    # Merge rebuilt data back into the full files
     all_scores, _, scores_sha = load_guild_scores(guild_id)
     all_users, _, users_sha = load_guild_users(guild_id)
-
     save_guild_scores(guild_id, all_scores, guild_scores, scores_sha, f"MapTap rescan guild {guild_id}")
     save_guild_users(guild_id, all_users, guild_users, users_sha, f"MapTap rescan guild {guild_id}")
-
     await channel.send(
         f"✅ **Rescan complete**\n"
         f"• Scores ingested: **{ingested}**\n"
@@ -1493,29 +1345,22 @@ async def rescan(interaction: discord.Interaction):
     )
 
 
-# /repair_stats
 @client.tree.command(name="repair_stats", description="Repair MapTap user stats from existing score data (admin)")
 async def repair_stats(interaction: discord.Interaction):
     if not isinstance(interaction.user, discord.Member):
         await interaction.response.send_message("❌ Server only.", ephemeral=True)
         return
-
     guild_id = str(interaction.guild_id)
     settings, _ = load_guild_settings(guild_id)
-
     if not has_admin_access(interaction.user, settings):
         await interaction.response.send_message("❌ No permission", ephemeral=True)
         return
-
     tz = get_guild_tz(settings)
     await interaction.response.send_message("🛠️ Repairing MapTap stats…", ephemeral=True)
-
     all_scores, guild_scores, scores_sha = load_guild_scores(guild_id)
     all_users, _, users_sha = load_guild_users(guild_id)
-
     rebuilt: Dict[str, Dict[str, Any]] = {}
     played_days: Dict[str, set] = {}
-
     for dkey, bucket in guild_scores.items():
         if not isinstance(bucket, dict):
             continue
@@ -1524,26 +1369,20 @@ async def repair_stats(interaction: discord.Interaction):
                 sc = int(entry["score"])
             except Exception:
                 continue
-
             rebuilt.setdefault(uid, default_user_stats())
             played_days.setdefault(uid, set()).add(dkey)
             rebuilt[uid]["total_points"] += sc
-
             if sc > int(rebuilt[uid]["personal_best"]["score"]):
                 rebuilt[uid]["personal_best"] = {"score": sc, "date": dkey}
-
             if sc < int(rebuilt[uid]["personal_low"]["score"]):
                 rebuilt[uid]["personal_low"] = {"score": sc, "date": dkey}
-
     for uid, days in played_days.items():
         rebuilt[uid]["days_played"] = len(days)
         rebuilt[uid]["best_streak"] = calculate_current_streak(guild_scores, uid, tz)
-
     save_guild_users(guild_id, all_users, rebuilt, users_sha, f"MapTap repair stats guild {guild_id}")
     await interaction.followup.send(f"✅ Repair complete — users repaired: **{len(rebuilt)}**", ephemeral=False)
 
 
-# /help
 @client.tree.command(name="help", description="How to use the MapTap bot")
 async def help_command(interaction: discord.Interaction):
     embed = discord.Embed(
@@ -1554,7 +1393,6 @@ async def help_command(interaction: discord.Interaction):
         ),
         color=0xF1C40F,
     )
-
     embed.add_field(
         name="🚀 Getting started (admins)",
         value=(
@@ -1566,7 +1404,6 @@ async def help_command(interaction: discord.Interaction):
         ),
         inline=False,
     )
-
     embed.add_field(
         name="📋 Commands",
         value=(
@@ -1580,7 +1417,6 @@ async def help_command(interaction: discord.Interaction):
         ),
         inline=False,
     )
-
     embed.add_field(
         name="📬 Automatic posts",
         value=(
@@ -1592,7 +1428,6 @@ async def help_command(interaction: discord.Interaction):
         ),
         inline=False,
     )
-
     embed.add_field(
         name="🎯 Score tracking",
         value=(
@@ -1602,7 +1437,6 @@ async def help_command(interaction: discord.Interaction):
         ),
         inline=False,
     )
-
     embed.set_footer(text=f"MapTap → {MAPTAP_URL}")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -1615,6 +1449,5 @@ if __name__ == "__main__":
         raise RuntimeError("Missing TOKEN env var")
     if not GITHUB_TOKEN or not GITHUB_REPO:
         raise RuntimeError("Missing GITHUB_TOKEN or GITHUB_REPO env vars")
-
     Thread(target=run_web, daemon=True).start()
     client.run(TOKEN)
