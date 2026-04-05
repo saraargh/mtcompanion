@@ -210,6 +210,50 @@ def save_guild_settings(guild_id: str, guild_settings: Dict[str, Any], message: 
     save_all_settings(all_settings, sha, message)
 
 # =====================================================
+# GLOBAL AND NAME HELPER
+# =====================================================
+def get_global_leaderboard_rows() -> List[Tuple[str, float, int]]:
+    """
+    Returns:
+    (user_id, global_average, server_count)
+    """
+    all_users, _ = load_all_users()
+
+    global_avgs: Dict[str, List[float]] = {}
+
+    for guild_users in all_users.values():
+        if not isinstance(guild_users, dict):
+            continue
+
+        for uid, stats in guild_users.items():
+            try:
+                days = int(stats.get("days_played", 0))
+                if days <= 0:
+                    continue
+
+                total_points = float(stats.get("total_points", 0))
+                avg = total_points / days
+                global_avgs.setdefault(uid, []).append(avg)
+
+            except Exception:
+                continue
+
+    rows = [
+        (uid, sum(avgs) / len(avgs), len(avgs))  # 👈 server count here
+        for uid, avgs in global_avgs.items()
+    ]
+
+    rows.sort(key=lambda x: x[1], reverse=True)
+    return rows
+
+async def get_global_display_name(uid: str) -> str:
+    try:
+        user = await client.fetch_user(int(uid))
+        return user.global_name or user.name
+    except Exception:
+        return "Unknown User"
+
+# =====================================================
 # TIMEZONE HELPER
 # =====================================================
 def get_guild_tz(settings: Dict[str, Any]) -> ZoneInfo:
@@ -1490,6 +1534,46 @@ async def help_command(interaction: discord.Interaction):
     )
     embed.set_footer(text=f"MapTap → {MAPTAP_URL}")
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@client.tree.command(name="global", description="Show the global MapTap top 5")
+async def global_leaderboard(interaction: discord.Interaction):
+    await interaction.response.defer()
+
+    try:
+        rows = get_global_leaderboard_rows()
+    except Exception as e:
+        await interaction.followup.send(
+            f"❌ Failed to load global leaderboard data: {e}",
+            ephemeral=True
+        )
+        return
+
+    if not rows:
+        await interaction.followup.send("🗺️ No global data yet.")
+        return
+
+    top_5 = rows[:5]
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    lines: List[str] = []
+
+    for i, (uid, avg, server_count) in enumerate(top_5):
+        name = await get_global_display_name(uid)
+
+        lines.append(
+            f"{medals[i]} **{name}**\n"
+            f"╰ `Avg: {round(avg)}` • 🌐 `{server_count} server{'s' if server_count != 1 else ''}`"
+        )
+
+    embed = discord.Embed(
+        title="🌍 Global MapTap Leaderboard",
+        description="\n\n".join(lines),
+        color=0xF1C40F
+    )
+
+    embed.set_footer(text=f"Top 5 global players • {len(rows)} total tracked")
+    embed.timestamp = discord.utils.utcnow()
+
+    await interaction.followup.send(embed=embed)
 
 
 # =====================================================
