@@ -79,9 +79,9 @@
       }
     },
     "924686780408676392": {
-      "total_points": 13281,
-      "days_played": 16,
-      "best_streak": 0,
+      "total_points": 14131,
+      "days_played": 17,
+      "best_streak": 1,
       "personal_best": {
         "score": 970,
         "date": "2026-03-12"
@@ -89,7 +89,8 @@
       "personal_low": {
         "score": 689,
         "date": "2026-03-09"
-      }
+      },
+      "current_streak": 1
     },
     "1355886703767847064": {
       "total_points": 20704,
