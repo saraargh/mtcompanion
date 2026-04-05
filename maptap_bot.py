@@ -951,10 +951,10 @@ async def on_message(message: discord.Message):
             except Exception as e:
                 print(f"⚠️ PB send failed:", e)
 
-    old_low = int(guild_users[uid]["personal_low"].get("score", 100000))
+    old_low = int(guild_users[uid]["personal_low"].get("score", 1001))
     if score < old_low:
         guild_users[uid]["personal_low"] = {"score": score, "date": dkey}
-        if alerts.get("pb_messages_enabled", True) and old_low != 100000:
+        if alerts.get("pb_messages_enabled", True) and old_low != 1001:
             try:
                 await message.channel.send(
                     f"🧯 **New Personal Low!**\n"
@@ -964,6 +964,7 @@ async def on_message(message: discord.Message):
                 print(f"⚠️ personal low send failed:", e)
 
     cur = calculate_current_streak(guild_scores, uid, tz)
+        guild_users[uid]["current_streak"] = cur  # <--- ADD THIS LINE HERE
     try:
         guild_users[uid]["best_streak"] = max(int(guild_users[uid].get("best_streak", 0)), int(cur))
     except Exception:
@@ -1177,7 +1178,7 @@ async def mymaptap(interaction: discord.Interaction):
         await interaction.response.send_message("🗺️ You don't have any MapTap scores yet.", ephemeral=True)
         return
     stats.setdefault("personal_best", {"score": 0, "date": "N/A"})
-    stats.setdefault("personal_low", {"score": 100000, "date": "N/A"})
+    stats.setdefault("personal_low", {"score": 1001, "date": "N/A"})
     stats.setdefault("best_streak", 0)
     stats.setdefault("total_points", 0)
     stats.setdefault("days_played", 0)
