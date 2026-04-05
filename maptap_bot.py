@@ -1504,6 +1504,7 @@ async def help_command(interaction: discord.Interaction):
         value=(
             "`/mymaptap` — Your personal stats, streaks, PBs and rankings\n"
             "`/leaderboard` — Server leaderboards (this week / month / all-time)\n"
+            "`/global` — Top 5 Global Discord Players (all time average)\n"
             "`/settimezone` — Set your server's timezone (admin)\n"
             "`/maptapsettings` — Configure the bot (admin)\n"
             "`/rescan` — Rebuild all stats from channel history (admin)\n"
