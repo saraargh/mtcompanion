@@ -142,7 +142,9 @@
   "1472971490134720552": {
     "enabled": true,
     "channel_id": 1478696435204755608,
-    "admin_role_ids": [],
+    "admin_role_ids": [
+      1491520915484311726
+    ],
     "timezone": "Europe/London",
     "alerts": {
       "daily_post_enabled": true,
