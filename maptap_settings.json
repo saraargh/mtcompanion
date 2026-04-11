@@ -189,7 +189,7 @@
     "admin_role_ids": [
       758395459483467838
     ],
-    "timezone": "Europe/London",
+    "timezone": "PST8PDT",
     "alerts": {
       "daily_post_enabled": true,
       "daily_scoreboard_enabled": true,
