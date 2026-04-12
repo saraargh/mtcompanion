@@ -682,6 +682,7 @@ async def on_ready():
     except Exception as e:
         print("❌ Failed to start scheduler_tick in on_ready:", e)
 
+
 # =====================================================
 # PRIVATE SERVER TRACKING
 # =====================================================
@@ -710,9 +711,8 @@ async def send_tracking_log(title: str, description: str, guild: Optional[discor
         await channel.send(embed=embed)
     except Exception as e:
         print(f"⚠️ Failed to send tracking log: {e}")
-        
-        
-        @client.event
+
+@client.event
 async def on_guild_join(guild: discord.Guild):
     await send_tracking_log(
         title="📥 Bot added to server",
@@ -738,6 +738,7 @@ async def on_guild_remove(guild: discord.Guild):
         ),
         guild=guild,
     )
+
 # =====================================================
 # PERMISSIONS / CHANNEL
 # =====================================================
