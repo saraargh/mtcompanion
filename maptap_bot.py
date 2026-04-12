@@ -30,6 +30,7 @@ load_dotenv()
 # =====================================================
 TOKEN = os.getenv("TOKEN")
 
+
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_REPO = os.getenv("GITHUB_REPO")  # e.g. "saraargh/the-pilot"
 
@@ -49,6 +50,9 @@ RIVALRY_MIN_PLAYERS = int(os.getenv("MAPTAP_RIVALRY_MIN_PLAYERS", "5"))
 SCORE_REGEX = re.compile(r"Final\s*score:\s*(\d+)", re.IGNORECASE)
 ROUND_ZERO_REGEX = re.compile(r"(^|\s)0(?!\d)")
 MAPTAP_HINT_REGEX = re.compile(r"\bmaptap\.gg\b", re.IGNORECASE)
+
+TRACKING_GUILD_ID = 1489660601545261148
+TRACKING_CHANNEL_ID = 1493022615605088266
 
 # =====================================================
 # DEFAULT SETTINGS (per guild)
@@ -678,6 +682,62 @@ async def on_ready():
     except Exception as e:
         print("❌ Failed to start scheduler_tick in on_ready:", e)
 
+# =====================================================
+# PRIVATE SERVER TRACKING
+# =====================================================
+def is_tracking_admin(interaction: discord.Interaction) -> bool:
+    return bool(
+        interaction.guild_id == TRACKING_GUILD_ID
+        and isinstance(interaction.user, discord.Member)
+        and interaction.user.guild_permissions.administrator
+    )
+
+async def send_tracking_log(title: str, description: str, guild: Optional[discord.Guild] = None):
+    try:
+        channel = client.get_channel(TRACKING_CHANNEL_ID)
+        if channel is None:
+            channel = await client.fetch_channel(TRACKING_CHANNEL_ID)
+
+        if not isinstance(channel, discord.TextChannel):
+            return
+
+        embed = discord.Embed(title=title, description=description, color=0xF1C40F)
+        embed.timestamp = discord.utils.utcnow()
+
+        if guild and guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+
+        await channel.send(embed=embed)
+    except Exception as e:
+        print(f"⚠️ Failed to send tracking log: {e}")
+        
+        
+        @client.event
+async def on_guild_join(guild: discord.Guild):
+    await send_tracking_log(
+        title="📥 Bot added to server",
+        description=(
+            f"**Name:** {guild.name}\n"
+            f"**Guild ID:** `{guild.id}`\n"
+            f"**Owner ID:** `{guild.owner_id}`\n"
+            f"**Member count:** `{guild.member_count}`\n"
+            f"**Created:** {discord.utils.format_dt(guild.created_at, style='F')}"
+        ),
+        guild=guild,
+    )
+
+@client.event
+async def on_guild_remove(guild: discord.Guild):
+    await send_tracking_log(
+        title="📤 Bot removed from server",
+        description=(
+            f"**Name:** {guild.name}\n"
+            f"**Guild ID:** `{guild.id}`\n"
+            f"**Owner ID:** `{guild.owner_id}`\n"
+            f"**Member count:** `{guild.member_count}`"
+        ),
+        guild=guild,
+    )
 # =====================================================
 # PERMISSIONS / CHANNEL
 # =====================================================
