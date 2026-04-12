@@ -1643,8 +1643,9 @@ async def help_command(interaction: discord.Interaction):
         name="💛 Enjoying MapTap?",
         value=(
             "If you're enjoying the bot, you can support it here:\n"
-            "👉 https://top.gg/bot/1451248682807591003/vote\n\n"
-            "Every vote helps MapTap grow and reach more players ✈️"
+            "🗳️ Vote: https://top.gg/bot/1451248682807591003/vote\n"
+            "💬 Review: https://top.gg/bot/1451248682807591003#reviews\n\n"
+            "Every vote and review helps MapTap grow ✈️"
         ),
         inline=False,
     )
