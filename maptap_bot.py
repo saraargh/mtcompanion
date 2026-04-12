@@ -517,16 +517,25 @@ class MapTapBot(discord.Client):
 
     async def setup_hook(self):
         try:
-            if GUILD_ID.isdigit():
-                guild_obj = discord.Object(id=int(GUILD_ID))
-                self.tree.copy_global_to(guild=guild_obj)
-                await self.tree.sync(guild=guild_obj)
-                print(f"✅ Synced commands to guild {GUILD_ID}")
-            else:
-                await self.tree.sync()
-                print("✅ Synced commands globally")
+            # Sync global commands
+            await self.tree.sync()
+            print("✅ Synced global commands")
+
+            # Sync your private build-only commands to your tracking server
+            tracking_guild = discord.Object(id=TRACKING_GUILD_ID)
+            await self.tree.sync(guild=tracking_guild)
+            print(f"✅ Synced tracking commands to guild {TRACKING_GUILD_ID}")
+
+            # Optional dev guild sync if you use one
+            if GUILD_ID.isdigit() and int(GUILD_ID) != TRACKING_GUILD_ID:
+                dev_guild = discord.Object(id=int(GUILD_ID))
+                self.tree.copy_global_to(guild=dev_guild)
+                await self.tree.sync(guild=dev_guild)
+                print(f"✅ Synced global commands to dev guild {GUILD_ID}")
+
         except Exception as e:
             print("⚠️ Command sync failed:", e)
+
         if not self.scheduler_tick.is_running():
             self.scheduler_tick.start()
             print("✅ scheduler_tick started in setup_hook()")
@@ -575,7 +584,6 @@ class MapTapBot(discord.Client):
             if not isinstance(guild_scores, dict):
                 guild_scores = {}
 
-            # Daily Post
             if (
                 alerts.get("daily_post_enabled", True)
                 and now_hm == times.get("daily_post")
@@ -589,7 +597,6 @@ class MapTapBot(discord.Client):
                     all_settings[guild_id]["last_run"]["daily_post"] = today
                     settings_dirty = True
 
-            # Daily Scoreboard
             if (
                 alerts.get("daily_scoreboard_enabled", True)
                 and now_hm == times.get("daily_scoreboard")
@@ -603,7 +610,6 @@ class MapTapBot(discord.Client):
                     all_settings[guild_id]["last_run"]["daily_scoreboard"] = today
                     settings_dirty = True
 
-                # Cleanup old scores for this guild
                 cutoff = now.date() - timedelta(days=CLEANUP_DAYS)
                 cleaned = {
                     d: v for d, v in guild_scores.items()
@@ -613,7 +619,6 @@ class MapTapBot(discord.Client):
                     all_scores[str(guild_id)] = cleaned
                     scores_dirty = True
 
-            # Weekly Roundup (Sundays)
             if (
                 alerts.get("weekly_roundup_enabled", True)
                 and now.weekday() == 6
@@ -628,7 +633,6 @@ class MapTapBot(discord.Client):
                     all_settings[guild_id]["last_run"]["weekly_roundup"] = today
                     settings_dirty = True
 
-            # Rivalry Alert
             if (
                 alerts.get("rivalry_enabled", True)
                 and now_hm == times.get("rivalry")
@@ -642,7 +646,6 @@ class MapTapBot(discord.Client):
                     all_settings[guild_id]["last_run"]["rivalry"] = today
                     settings_dirty = True
 
-            # Monthly Leaderboard (1st of month)
             if (
                 alerts.get("monthly_leaderboard_enabled", True)
                 and now.day == 1
@@ -657,7 +660,6 @@ class MapTapBot(discord.Client):
                     all_settings[guild_id]["last_run"]["monthly_leaderboard"] = today
                     settings_dirty = True
 
-        # One write per file at the end — not per guild
         if settings_dirty:
             try:
                 save_all_settings(all_settings, settings_sha, "MapTap: last_run update")
@@ -1099,7 +1101,8 @@ def build_daily_prompt() -> str:
     return (
         "🗺️ **Daily MapTap is live!**\n"
         f"👉 {MAPTAP_URL}\n\n"
-        "Post your results **exactly as shared from the app** so I can track scores ✈️"
+        "Post your results **exactly as shared from the app** so I can track scores ✈️\n\n"
+        "Enjoying MapTap? Use **/vote** to support the bot 🗳️"
     )
 
 def build_daily_scoreboard_text(date_key: str, rows: List[Tuple[str, int]]) -> str:
@@ -1585,6 +1588,7 @@ async def help_command(interaction: discord.Interaction):
         ),
         color=0xF1C40F,
     )
+
     embed.add_field(
         name="🚀 Getting started (admins)",
         value=(
@@ -1596,12 +1600,14 @@ async def help_command(interaction: discord.Interaction):
         ),
         inline=False,
     )
+
     embed.add_field(
         name="📋 Commands",
         value=(
             "`/mymaptap` — Your personal stats, streaks, PBs and rankings\n"
             "`/leaderboard` — Server leaderboards (this week / month / all-time)\n"
             "`/global` — Top 5 Global Discord Players (all time average)\n"
+            "`/vote` — Support the bot and help it grow 🗳️\n"
             "`/settimezone` — Set your server's timezone (admin)\n"
             "`/maptapsettings` — Configure the bot (admin)\n"
             "`/rescan` — Rebuild all stats from channel history (admin)\n"
@@ -1610,6 +1616,7 @@ async def help_command(interaction: discord.Interaction):
         ),
         inline=False,
     )
+
     embed.add_field(
         name="📬 Automatic posts",
         value=(
@@ -1621,6 +1628,7 @@ async def help_command(interaction: discord.Interaction):
         ),
         inline=False,
     )
+
     embed.add_field(
         name="🎯 Score tracking",
         value=(
@@ -1630,7 +1638,20 @@ async def help_command(interaction: discord.Interaction):
         ),
         inline=False,
     )
+
+    embed.add_field(
+        name="💛 Enjoying MapTap?",
+        value=(
+            "If you're enjoying the bot, you can support it here:\n"
+            "👉 https://top.gg/bot/1451248682807591003/vote\n\n"
+            "Every vote helps MapTap grow and reach more players ✈️"
+        ),
+        inline=False,
+    )
+
     embed.set_footer(text=f"MapTap → {MAPTAP_URL}")
+    embed.timestamp = discord.utils.utcnow()
+
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @client.tree.command(name="global", description="Show the global MapTap top 5")
