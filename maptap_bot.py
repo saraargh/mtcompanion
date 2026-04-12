@@ -1673,6 +1673,99 @@ async def global_leaderboard(interaction: discord.Interaction):
 
     await interaction.followup.send(embed=embed)
 
+@client.tree.command(name="vote", description="Get the MapTap vote link")
+async def vote(interaction: discord.Interaction):
+
+    embed = discord.Embed(
+        title="🗳️ Vote for MapTap",
+        description=(
+            "Support the bot and help it grow!\n\n"
+            "👉 https://top.gg/bot/1451248682807591003/vote\n\n"
+            "Voting helps more people discover MapTap and keeps it alive ✈️"
+        ),
+        color=0xF1C40F
+    )
+
+    embed.set_footer(text="Thank you for supporting the bot 💛")
+    embed.timestamp = discord.utils.utcnow()
+
+    await interaction.response.send_message(embed=embed)
+
+
+# =====================================================
+# GUILD TRACKING - BUILD SERVER ONLY
+# =====================================================
+
+@app_commands.guilds(discord.Object(id=TRACKING_GUILD_ID))
+@client.tree.command(name="listservers", description="List all servers this bot is currently in")
+async def listservers(interaction: discord.Interaction):
+    if not is_tracking_admin(interaction):
+        await interaction.response.send_message("❌ No permission.", ephemeral=True)
+        return
+
+    guilds = sorted(client.guilds, key=lambda g: (g.member_count or 0), reverse=True)
+
+    if not guilds:
+        await interaction.response.send_message("Bot is not in any servers.", ephemeral=True)
+        return
+
+    lines = []
+    for i, g in enumerate(guilds[:50], start=1):
+        lines.append(
+            f"{i}. **{g.name}**\n"
+            f"   ID: `{g.id}` • Members: `{g.member_count}` • Owner: `{g.owner_id}`"
+        )
+
+    extra = ""
+    if len(guilds) > 50:
+        extra = f"\n\n...and **{len(guilds) - 50}** more."
+
+    embed = discord.Embed(
+        title=f"📋 Servers using MapTap ({len(guilds)})",
+        description="\n\n".join(lines) + extra,
+        color=0x3498DB
+    )
+    embed.timestamp = discord.utils.utcnow()
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@app_commands.guilds(discord.Object(id=TRACKING_GUILD_ID))
+@client.tree.command(name="serverlookup", description="Look up a server by ID")
+@app_commands.describe(server_id="The Discord server ID")
+async def serverlookup(interaction: discord.Interaction, server_id: str):
+    if not is_tracking_admin(interaction):
+        await interaction.response.send_message("❌ No permission.", ephemeral=True)
+        return
+
+    if not server_id.isdigit():
+        await interaction.response.send_message("❌ Invalid server ID.", ephemeral=True)
+        return
+
+    guild = client.get_guild(int(server_id))
+
+    if guild is None:
+        await interaction.response.send_message("❌ Bot is not in that server.", ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title="🔍 Server Lookup",
+        description=(
+            f"**Name:** {guild.name}\n"
+            f"**Guild ID:** `{guild.id}`\n"
+            f"**Owner ID:** `{guild.owner_id}`\n"
+            f"**Member count:** `{guild.member_count}`\n"
+            f"**Created:** {discord.utils.format_dt(guild.created_at, style='F')}"
+        ),
+        color=0x2ECC71
+    )
+
+    if guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
+
+    embed.timestamp = discord.utils.utcnow()
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 # =====================================================
 # STARTUP
