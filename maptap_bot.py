@@ -1695,20 +1695,21 @@ async def global_leaderboard(interaction: discord.Interaction):
 
     await interaction.followup.send(embed=embed)
 
-@client.tree.command(name="vote", description="Get the MapTap vote link")
+@client.tree.command(name="vote", description="Support MapTap with a vote or review")
 async def vote(interaction: discord.Interaction):
 
     embed = discord.Embed(
-        title="🗳️ Vote for MapTap",
+        title="🗳️ Support MapTap",
         description=(
-            "Support the bot and help it grow!\n\n"
-            "👉 https://top.gg/bot/1451248682807591003/vote\n\n"
-            "Voting helps more people discover MapTap and keeps it alive ✈️"
+            "Enjoying MapTap? Support the bot here:\n\n"
+            "🗳️ **Vote:** https://top.gg/bot/1451248682807591003/vote\n"
+            "💬 **Leave a review:** https://top.gg/bot/1451248682807591003#reviews\n\n"
+            "Takes 10 seconds and helps more players discover MapTap ✈️"
         ),
         color=0xF1C40F
     )
 
-    embed.set_footer(text="Thank you for supporting the bot 💛")
+    embed.set_footer(text="Thank you for supporting MapTap 💛")
     embed.timestamp = discord.utils.utcnow()
 
     await interaction.response.send_message(embed=embed)
