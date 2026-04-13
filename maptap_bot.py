@@ -503,6 +503,85 @@ def calculate_global_rank(user_id: str) -> Tuple[Optional[int], int]:
             return i, len(rows)
     return None, len(rows)
 
+
+# =====================================================
+# SERVERSTREAKHELPER
+# =====================================================
+
+def calculate_server_streaks(guild_scores: Dict[str, Any], tz: ZoneInfo) -> Tuple[int, int, Optional[str]]:
+    played_dates: List[date] = []
+
+    for dkey, bucket in guild_scores.items():
+        if not isinstance(bucket, dict):
+            continue
+        if not bucket:
+            continue
+
+        d = _safe_date(dkey)
+        if d:
+            played_dates.append(d)
+
+    if not played_dates:
+        return 0, 0, None
+
+    played_dates = sorted(set(played_dates))
+
+    # Best streak
+    best = 1
+    current_chain = 1
+    for i in range(1, len(played_dates)):
+        if played_dates[i] == played_dates[i - 1] + timedelta(days=1):
+            current_chain += 1
+        else:
+            current_chain = 1
+        best = max(best, current_chain)
+
+    # Current streak (must end today or yesterday)
+    today = datetime.now(tz).date()
+    yesterday = today - timedelta(days=1)
+
+    if played_dates[-1] not in (today, yesterday):
+        current = 0
+    else:
+        current = 1
+        check_date = played_dates[-1]
+        played_set = set(played_dates)
+
+        while (check_date - timedelta(days=1)) in played_set:
+            current += 1
+            check_date -= timedelta(days=1)
+
+    last_score_date = played_dates[-1].isoformat()
+    return current, best, last_score_date
+
+
+def initialise_all_server_streaks() -> Tuple[int, int]:
+    all_settings, settings_sha = load_all_settings()
+    all_scores, _ = load_all_scores()
+
+    updated = 0
+    total = 0
+
+    for guild_id, settings in all_settings.items():
+        total += 1
+        guild_scores = all_scores.get(str(guild_id), {})
+        if not isinstance(guild_scores, dict):
+            guild_scores = {}
+
+        tz = get_guild_tz(settings)
+        current, best, last_score_date = calculate_server_streaks(guild_scores, tz)
+
+        settings["server_streak"] = {
+            "current": current,
+            "best": best,
+            "last_score_date": last_score_date
+        }
+
+        updated += 1
+
+    save_all_settings(all_settings, settings_sha, "MapTap: initialise server streaks")
+    return updated, total
+
 # =====================================================
 # ROUND PARSING
 # =====================================================
@@ -1847,6 +1926,30 @@ async def serverlookup(interaction: discord.Interaction, server_id: str):
 
     embed.timestamp = discord.utils.utcnow()
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@app_commands.guilds(discord.Object(id=TRACKING_GUILD_ID))
+@client.tree.command(name="initserverstreaks", description="Initialise server streaks for all MapTap servers")
+async def initserverstreaks(interaction: discord.Interaction):
+    if not is_tracking_admin(interaction):
+        await interaction.response.send_message("❌ No permission.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    try:
+        updated, total = initialise_all_server_streaks()
+    except Exception as e:
+        await interaction.followup.send(
+            f"❌ Failed to initialise server streaks:\n`{e}`",
+            ephemeral=True
+        )
+        return
+
+    await interaction.followup.send(
+        f"✅ Server streak initialiser complete.\n"
+        f"Updated **{updated}** of **{total}** saved guilds.",
+        ephemeral=True
+    )
 
 
 # =====================================================
