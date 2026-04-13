@@ -62,6 +62,12 @@ DEFAULT_GUILD_SETTINGS: Dict[str, Any] = {
     "channel_id": None,
     "admin_role_ids": [],
     "timezone": "Europe/London",
+    "server_streak": {
+        "current": 0,
+        "best": 0,
+        "last_score_date": None
+    },
+
     "alerts": {
         "daily_post_enabled": True,
         "daily_scoreboard_enabled": True,
@@ -193,6 +199,11 @@ def _normalize_guild_settings(raw: Any) -> Dict[str, Any]:
     merged["last_run"] = _merge_nested(DEFAULT_GUILD_SETTINGS["last_run"], merged.get("last_run"))
     if not isinstance(merged["last_run"], dict):
         merged["last_run"] = DEFAULT_GUILD_SETTINGS["last_run"].copy()
+
+    merged["server_streak"] = _merge_nested(
+    DEFAULT_GUILD_SETTINGS["server_streak"],
+    merged.get("server_streak")
+)
     return merged
 
 def load_all_settings() -> Tuple[Dict[str, Any], Optional[str]]:
@@ -1025,6 +1036,36 @@ async def on_message(message: discord.Message):
     guild_users[uid]["total_points"] += score
     guild_scores[dkey][uid] = {"score": score, "updated_at": msg_time.isoformat()}
 
+# =========================
+# SERVER STREAK UPDATE
+# =========================
+    streak_data = settings.setdefault("server_streak", {
+        "current": 0,
+        "best": 0,
+        "last_score_date": None
+    })
+    
+    last_score_date = streak_data.get("last_score_date")
+    
+    if last_score_date != dkey:
+        new_current = 1
+    
+        if last_score_date:
+            try:
+                last_date = datetime.strptime(last_score_date, "%Y-%m-%d").date()
+                current_date = datetime.strptime(dkey, "%Y-%m-%d").date()
+    
+                if current_date == last_date + timedelta(days=1):
+                    new_current = int(streak_data.get("current", 0)) + 1
+            except Exception:
+                new_current = 1
+    
+        streak_data["current"] = new_current
+        streak_data["best"] = max(int(streak_data.get("best", 0)), new_current)
+        streak_data["last_score_date"] = dkey
+    
+        save_guild_settings(guild_id, settings, "MapTap: update server streak")
+
     alerts = settings.get("alerts", DEFAULT_GUILD_SETTINGS["alerts"])
 
     if alerts.get("zero_score_roasts_enabled", True) and has_zero_round(message.content or ""):
@@ -1097,10 +1138,28 @@ async def on_message(message: discord.Message):
 # SCHEDULED ACTIONS
 # (accept pre-loaded guild_scores — no extra GitHub calls per action)
 # =====================================================
-def build_daily_prompt() -> str:
+def build_daily_prompt(settings: Dict[str, Any]) -> str:
+    streak = settings.get("server_streak", {})
+    current = int(streak.get("current", 0))
+    last_score_date = streak.get("last_score_date")
+
+    streak_line = ""
+    try:
+        today = datetime.now(get_guild_tz(settings)).date()
+        if last_score_date:
+            last_date = datetime.strptime(last_score_date, "%Y-%m-%d").date()
+
+            if last_date == today - timedelta(days=1):
+                streak_line = f"🔥 Your server is on a **{current}-day streak** — keep it alive today!\n\n"
+            elif last_date == today:
+                streak_line = f"🔥 Your server is on a **{current}-day streak!**\n\n"
+    except Exception:
+        pass
+
     return (
         "🗺️ **Daily MapTap is live!**\n"
         f"👉 {MAPTAP_URL}\n\n"
+        f"{streak_line}"
         "Post your results **exactly as shared from the app** so I can track scores ✈️\n\n"
         "Enjoying MapTap? Use **/vote** to support the bot 🗳️"
     )
@@ -1135,7 +1194,7 @@ def build_weekly_roundup_text(mon: date, sun: date, rows: List[Tuple[str, int, i
 async def do_daily_post(guild_id: str, settings: Dict[str, Any]):
     ch = get_configured_channel(settings)
     if ch:
-        await ch.send(build_daily_prompt())
+        await ch.send(build_daily_prompt(settings))
 
 async def do_daily_scoreboard(guild_id: str, settings: Dict[str, Any], guild_scores: Dict[str, Any]):
     ch = get_configured_channel(settings)
