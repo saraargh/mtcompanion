@@ -266,7 +266,7 @@
       "last_score_date": null
     },
     "alerts": {
-      "daily_post_enabled": true,
+      "daily_post_enabled": false,
       "daily_scoreboard_enabled": true,
       "weekly_roundup_enabled": true,
       "rivalry_enabled": true,
