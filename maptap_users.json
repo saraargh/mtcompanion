@@ -382,6 +382,20 @@
         "date": "2026-04-14"
       },
       "current_streak": 1
+    },
+    "280790511500132352": {
+      "total_points": 942,
+      "days_played": 1,
+      "best_streak": 1,
+      "personal_best": {
+        "score": 942,
+        "date": "2026-04-14"
+      },
+      "personal_low": {
+        "score": 942,
+        "date": "2026-04-14"
+      },
+      "current_streak": 1
     }
   }
 }
