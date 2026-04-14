@@ -281,5 +281,91 @@
       "current_streak": 2
     }
   },
-  "333949691962195969": {}
+  "333949691962195969": {},
+  "1327237678466338932": {
+    "1177291060855181407": {
+      "total_points": 6234,
+      "days_played": 7,
+      "best_streak": 3,
+      "personal_best": {
+        "score": 975,
+        "date": "2026-04-01"
+      },
+      "personal_low": {
+        "score": 747,
+        "date": "2026-03-31"
+      },
+      "current_streak": 1
+    },
+    "1250280138176856065": {
+      "total_points": 13439,
+      "days_played": 15,
+      "best_streak": 8,
+      "personal_best": {
+        "score": 967,
+        "date": "2026-04-14"
+      },
+      "personal_low": {
+        "score": 693,
+        "date": "2026-03-31"
+      },
+      "current_streak": 7
+    },
+    "357895384573542400": {
+      "total_points": 2325,
+      "days_played": 4,
+      "best_streak": 2,
+      "personal_best": {
+        "score": 904,
+        "date": "2026-04-05"
+      },
+      "personal_low": {
+        "score": 386,
+        "date": "2026-04-04"
+      },
+      "current_streak": 0
+    },
+    "1197392858823540736": {
+      "total_points": 6759,
+      "days_played": 7,
+      "best_streak": 2,
+      "personal_best": {
+        "score": 984,
+        "date": "2026-04-08"
+      },
+      "personal_low": {
+        "score": 942,
+        "date": "2026-04-02"
+      },
+      "current_streak": 1
+    },
+    "353487348211646464": {
+      "total_points": 1052,
+      "days_played": 2,
+      "best_streak": 1,
+      "personal_best": {
+        "score": 681,
+        "date": "2026-04-01"
+      },
+      "personal_low": {
+        "score": 371,
+        "date": "2026-03-30"
+      },
+      "current_streak": 0
+    },
+    "1268830107578007554": {
+      "total_points": 6439,
+      "days_played": 7,
+      "best_streak": 3,
+      "personal_best": {
+        "score": 951,
+        "date": "2026-04-11"
+      },
+      "personal_low": {
+        "score": 841,
+        "date": "2026-04-07"
+      },
+      "current_streak": 1
+    }
+  }
 }
