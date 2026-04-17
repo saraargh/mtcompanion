@@ -1828,16 +1828,19 @@ async def send_welcome_message(settings: Dict[str, Any]):
     ch = get_configured_channel(settings)
     if not ch:
         return
+
     tz_str = settings.get("timezone", "Europe/London")
     times = settings.get("times", DEFAULT_GUILD_SETTINGS["times"])
-    await ch.send(
-        f"🗺️ **MapTap Companion is set up and ready!**\n\n"
-        f"Daily posts at **{times.get('daily_post', '00:00')}** · "
-        f"Scoreboard at **{times.get('daily_scoreboard', '23:30')}** · "
-        f"Timezone: **{tz_str}**\n\n"
-        f"Use `/help` to see all commands. Let's play! ✈️"
-    )
+    daily_time = times.get("daily_post", "00:00")
 
+    await ch.send(
+        f"🗺️ **MapTap is set up and ready!**\n\n"
+        f"👉 {MAPTAP_URL}\n\n"
+        f"📌 **Start recording your scores:**\n"
+        f"Paste your result from the app in this channel and I’ll track it automatically \n\n"
+        f"⏰ Daily MapTap posts at **{daily_time}** ({tz_str})\n\n"
+        f"❓ Use `/help` to see stats, leaderboards, and everything else"
+    )
 
 # /help
 @client.tree.command(name="help", description="How to use MapTap Companion")
