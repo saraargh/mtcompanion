@@ -43,6 +43,7 @@ MAX_SCORE = int(os.getenv("MAPTAP_MAX_SCORE", "1000"))
 
 # Optional: to make slash commands appear instantly in a specific guild during dev
 GUILD_ID = os.getenv("MAPTAP_GUILD_ID", "").strip()
+DEV_GUILD = discord.Object(id=int(GUILD_ID)) if GUILD_ID.isdigit() else None
 
 RESET_PASSWORD = os.getenv("RESET_PASSWORD", "")
 
@@ -514,21 +515,21 @@ class MapTapBot(discord.Client):
 
     async def setup_hook(self):
         try:
-            if GUILD_ID.isdigit():
-                guild_obj = discord.Object(id=int(GUILD_ID))
-                self.tree.copy_global_to(guild=guild_obj)
-                await self.tree.sync(guild=guild_obj)
-                print(f"✅ Synced commands to guild {GUILD_ID}")
-            else:
-                await self.tree.sync()
-                print("✅ Synced commands globally")
+            self.tree.clear_commands(guild=None)
+            await self.tree.sync()
+            print("✅ Synced global commands")
+
+            if DEV_GUILD is not None:
+                await self.tree.sync(guild=DEV_GUILD)
+                print(f"✅ Synced dev commands to guild {GUILD_ID}")
+
         except Exception as e:
             print("⚠️ Command sync failed:", e)
 
         if not self.scheduler_tick.is_running():
             self.scheduler_tick.start()
             print("✅ scheduler_tick started in setup_hook()")
-
+        
     @tasks.loop(minutes=1)
     async def scheduler_tick(self):
         """
@@ -1639,13 +1640,13 @@ async def post_command(interaction: discord.Interaction):
 # BROADCAST (tracking guild admins only)
 # =====================================================
 def _is_tracking_guild_admin(interaction: discord.Interaction) -> bool:
-    """Returns True if the interaction is from the tracking guild and user has admin access there."""
-    if not GUILD_ID.isdigit():
+    if DEV_GUILD is None:
         return False
     if str(interaction.guild_id) != GUILD_ID:
         return False
     if not isinstance(interaction.user, discord.Member):
         return False
+
     tracking_settings, _ = load_guild_settings(GUILD_ID)
     return has_admin_access(interaction.user, tracking_settings)
 
@@ -1686,8 +1687,11 @@ class BroadcastModal(discord.ui.Modal, title="Broadcast Message"):
             ephemeral=True,
         )
 
-
-@client.tree.command(name="broadcast", description="Send a message to all servers (tracking guild admins only)")
+@app_commands.guilds(DEV_GUILD)
+@client.tree.command(
+    name="broadcast",
+    description="Send a message to all servers (tracking guild admins only)",
+)
 async def broadcast(interaction: discord.Interaction):
     if not _is_tracking_guild_admin(interaction):
         await interaction.response.send_message("❌ You don't have permission to do that.", ephemeral=True)
@@ -1698,7 +1702,11 @@ async def broadcast(interaction: discord.Interaction):
 # =====================================================
 # /nudge — DM owners of unconfigured servers (once per owner)
 # =====================================================
-@client.tree.command(name="nudge", description="DM owners of servers that haven't set up the bot (tracking guild admins only)")
+@app_commands.guilds(DEV_GUILD)
+@client.tree.command(
+    name="nudge",
+    description="DM owners of servers that haven't set up the bot (tracking guild admins only)",
+)
 async def nudge(interaction: discord.Interaction):
     if not _is_tracking_guild_admin(interaction):
         await interaction.response.send_message("❌ You don't have permission to do that.", ephemeral=True)
@@ -1709,14 +1717,13 @@ async def nudge(interaction: discord.Interaction):
     all_settings, _ = load_all_settings()
     configured_guild_ids = set(all_settings.keys())
 
-    # Deduplicate by owner user ID so multi-server owners only get one DM
-    owners_dmed: set = set()
+    owners_dmed: set[int] = set()
     dmed = 0
     skipped = 0
 
     for guild in client.guilds:
         if str(guild.id) in configured_guild_ids:
-            continue  # already set up
+            continue
 
         try:
             owner = guild.owner
@@ -1744,6 +1751,58 @@ async def nudge(interaction: discord.Interaction):
         ephemeral=True,
     )
 
+
+# =====================================================
+# server_list
+# =====================================================
+
+@app_commands.guilds(DEV_GUILD)
+@client.tree.command(
+    name="serverlist",
+    description="List all servers this bot is currently in",
+)
+async def serverlist(interaction: discord.Interaction):
+    if not _is_tracking_guild_admin(interaction):
+        await interaction.response.send_message("❌ No permission.", ephemeral=True)
+        return
+
+    guilds = sorted(client.guilds, key=lambda g: (g.member_count or 0), reverse=True)
+
+    if not guilds:
+        await interaction.response.send_message("Bot is not in any servers.", ephemeral=True)
+        return
+
+    chunks = []
+    current_chunk = []
+
+    for i, g in enumerate(guilds, start=1):
+        entry = (
+            f"{i}. **{g.name}**\n"
+            f"   ID: `{g.id}` • Members: `{g.member_count or 0}` • Owner: `{g.owner_id}`"
+        )
+
+        test_chunk = current_chunk + [entry]
+        if len("\n\n".join(test_chunk)) > 3500:
+            chunks.append("\n\n".join(current_chunk))
+            current_chunk = [entry]
+        else:
+            current_chunk = test_chunk
+
+    if current_chunk:
+        chunks.append("\n\n".join(current_chunk))
+
+    for page_num, chunk in enumerate(chunks, start=1):
+        embed = discord.Embed(
+            title=f"📋 Servers using MapTap ({len(guilds)})" if page_num == 1 else f"📋 Servers using MapTap ({len(guilds)}) — Page {page_num}",
+            description=chunk,
+            color=0x3498DB
+        )
+        embed.timestamp = discord.utils.utcnow()
+
+        if page_num == 1:
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        else:
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 # =====================================================
 # on_guild_join — DM the server owner
