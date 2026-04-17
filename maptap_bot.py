@@ -50,6 +50,11 @@ RESET_PASSWORD = os.getenv("RESET_PASSWORD", "")
 RIVALRY_THRESHOLD = int(os.getenv("MAPTAP_RIVALRY_THRESHOLD", "15"))
 RIVALRY_MIN_PLAYERS = int(os.getenv("MAPTAP_RIVALRY_MIN_PLAYERS", "5"))
 
+TRACKING_GUILD_ID = 1489660601545261148
+TRACKING_CHANNEL_ID = 1493022615605088266
+
+TOPGG_TOKEN = os.getenv("TOPGG_TOKEN")
+
 # ---------------------------------------------
 # Parsing
 # ---------------------------------------------
@@ -501,6 +506,31 @@ def has_zero_round(text: str) -> bool:
             return True
     return False
 
+# ==============
+# update topgg
+# =============
+
+def update_topgg():
+    if not TOPGG_TOKEN or not client.user:
+        return
+
+    try:
+        requests.post(
+            f"https://top.gg/api/bots/{client.user.id}/stats",
+            headers={
+                "Authorization": TOPGG_TOKEN,
+                "Content-Type": "application/json",
+            },
+            json={
+                "server_count": len(client.guilds)
+            },
+            timeout=10,
+        )
+        print(f"📊 Top.gg updated: {len(client.guilds)} servers")
+    except Exception as e:
+        print("❌ Top.gg update failed:", e)
+
+
 # =====================================================
 # DISCORD CLIENT
 # =====================================================
@@ -623,6 +653,9 @@ client = MapTapBot()
 @client.event
 async def on_ready():
     print(f"✅ Logged in as {client.user} (MapTap)")
+
+    update_topgg()
+
     try:
         if not client.scheduler_tick.is_running():
             client.scheduler_tick.start()
@@ -1804,11 +1837,51 @@ async def serverlist(interaction: discord.Interaction):
         else:
             await interaction.followup.send(embed=embed, ephemeral=True)
 
+# =========
+# helper - guild leave and join msg
+# ===========
+
+async def send_tracking_log(title: str, description: str, guild: Optional[discord.Guild] = None):
+    try:
+        channel = client.get_channel(TRACKING_CHANNEL_ID)
+        if channel is None:
+            channel = await client.fetch_channel(TRACKING_CHANNEL_ID)
+
+        if not isinstance(channel, discord.TextChannel):
+            return
+
+        embed = discord.Embed(title=title, description=description, color=0xF1C40F)
+        embed.timestamp = discord.utils.utcnow()
+
+        if guild and guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+
+        await channel.send(embed=embed)
+    except Exception as e:
+        print(f"⚠️ Failed to send tracking log: {e}")
+
 # =====================================================
-# on_guild_join — DM the server owner
+# on_guild_join and leave
 # =====================================================
 @client.event
 async def on_guild_join(guild: discord.Guild):
+    update_topgg()
+
+    try:
+        await send_tracking_log(
+            title="📥 Bot added to server",
+            description=(
+                f"**Name:** {guild.name}\n"
+                f"**Guild ID:** `{guild.id}`\n"
+                f"**Owner ID:** `{guild.owner_id}`\n"
+                f"**Member count:** `{guild.member_count}`\n"
+                f"**Created:** {discord.utils.format_dt(guild.created_at, style='F')}"
+            ),
+            guild=guild,
+        )
+    except Exception as e:
+        print(f"⚠️ Failed to send tracking log on guild join: {e}")
+
     try:
         owner = guild.owner or await client.fetch_user(guild.owner_id)
         await owner.send(
@@ -1817,9 +1890,27 @@ async def on_guild_join(guild: discord.Guild):
             f"Run `/help` to see everything the bot can do.\n\n"
             f"➡️ {MAPTAP_URL}"
         )
-    except Exception:
-        pass  # owner has DMs closed — silently skip
+    except Exception as e:
+        print(f"⚠️ Failed to DM guild owner on join: {e}")
 
+
+@client.event
+async def on_guild_remove(guild: discord.Guild):
+    update_topgg()
+
+    try:
+        await send_tracking_log(
+            title="📤 Bot removed from server",
+            description=(
+                f"**Name:** {guild.name}\n"
+                f"**Guild ID:** `{guild.id}`\n"
+                f"**Owner ID:** `{guild.owner_id}`\n"
+                f"**Member count:** `{guild.member_count}`"
+            ),
+            guild=guild,
+        )
+    except Exception as e:
+        print(f"⚠️ Failed to send tracking log on guild remove: {e}")
 
 # =====================================================
 # Welcome message helper — fires when bot is enabled or channel is first set
