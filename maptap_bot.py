@@ -71,6 +71,12 @@ DEFAULT_GUILD_SETTINGS: Dict[str, Any] = {
     "admin_role_ids": [],
     "timezone": "Europe/London",
 
+    "server_streak": {
+        "current": 0,
+        "best": 0,
+        "last_score_date": None
+    },
+
     "alerts": {
         "daily_post_enabled": True,
         "daily_scoreboard_enabled": True,
@@ -225,6 +231,11 @@ def _normalize_guild_settings(raw: Any) -> Dict[str, Any]:
     if not isinstance(merged["last_run"], dict):
         merged["last_run"] = DEFAULT_GUILD_SETTINGS["last_run"].copy()
 
+    merged["server_streak"] = _merge_nested(
+    DEFAULT_GUILD_SETTINGS["server_streak"],
+    merged.get("server_streak")
+)
+
     return merged
 
 def load_all_settings() -> Tuple[Dict[str, Any], Optional[str]]:
@@ -339,6 +350,7 @@ def compute_period_rows(
             totals[uid]["days"] += 1
 
     return totals
+
 
 # =====================================================
 # GUILD-SCOPED DATA HELPERS
@@ -494,6 +506,113 @@ def calculate_global_rank(user_id: str) -> Tuple[Optional[int], int]:
             return i, len(rows)
 
     return None, len(rows)
+
+# =====================================================
+# SERVERSTREAKHELPER
+# =====================================================
+
+def calculate_server_streaks(guild_scores: Dict[str, Any], tz: ZoneInfo) -> Tuple[int, int, Optional[str]]:
+    played_dates: List[date] = []
+
+    for dkey, bucket in guild_scores.items():
+        if not isinstance(bucket, dict):
+            continue
+        if not bucket:
+            continue
+
+        d = _safe_date(dkey)
+        if d:
+            played_dates.append(d)
+
+    if not played_dates:
+        return 0, 0, None
+
+    played_dates = sorted(set(played_dates))
+
+    # Best streak
+    best = 1
+    current_chain = 1
+    for i in range(1, len(played_dates)):
+        if played_dates[i] == played_dates[i - 1] + timedelta(days=1):
+            current_chain += 1
+        else:
+            current_chain = 1
+        best = max(best, current_chain)
+
+    # Current streak (must end today or yesterday)
+    today = datetime.now(tz).date()
+    yesterday = today - timedelta(days=1)
+
+    if played_dates[-1] not in (today, yesterday):
+        current = 0
+    else:
+        current = 1
+        check_date = played_dates[-1]
+        played_set = set(played_dates)
+
+        while (check_date - timedelta(days=1)) in played_set:
+            current += 1
+            check_date -= timedelta(days=1)
+
+    last_score_date = played_dates[-1].isoformat()
+    return current, best, last_score_date
+
+
+def initialise_all_server_streaks() -> Tuple[int, int]:
+    all_settings, settings_sha = load_all_settings()
+    all_scores, _ = github_load_json(SCORES_PATH, {})
+    if not isinstance(all_scores, dict):
+        all_scores = {}
+
+    updated = 0
+    total = 0
+
+    for guild_id, settings in all_settings.items():
+        total += 1
+        guild_scores = all_scores.get(str(guild_id), {})
+        if not isinstance(guild_scores, dict):
+            guild_scores = {}
+
+        tz = get_guild_tz(settings)
+        current, best, last_score_date = calculate_server_streaks(guild_scores, tz)
+
+        settings["server_streak"] = {
+            "current": current,
+            "best": best,
+            "last_score_date": last_score_date
+        }
+
+        updated += 1
+
+    save_all_settings(all_settings, settings_sha, "MapTap: initialise server streaks")
+    return updated, total
+
+
+@client.tree.command(
+    name="initserverstreaks",
+    description="Initialise server streaks for all MapTap servers",
+)
+async def initserverstreaks(interaction: discord.Interaction):
+    if not _is_tracking_guild_admin(interaction):
+        await interaction.response.send_message("❌ No permission.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    try:
+        updated, total = initialise_all_server_streaks()
+    except Exception as e:
+        await interaction.followup.send(
+            f"❌ Failed to initialise server streaks:\n`{e}`",
+            ephemeral=True
+        )
+        return
+
+    await interaction.followup.send(
+        f"✅ Server streak initialiser complete.\n"
+        f"Updated **{updated}** of **{total}** saved guilds.",
+        ephemeral=True
+    )
 
 # =====================================================
 # ROUND PARSING
@@ -1026,6 +1145,34 @@ async def on_message(message: discord.Message):
     guild_users[uid]["total_points"] += score
     guild_scores[dkey][uid] = {"score": score, "updated_at": msg_time.isoformat()}
 
+# SERVER STREAK UPDATE
+# =========================
+    streak_data = settings.setdefault("server_streak", {
+        "current": 0,
+        "best": 0,
+        "last_score_date": None
+    })
+    
+    last_score_date = streak_data.get("last_score_date")
+    
+    if last_score_date != dkey:
+        new_current = 1
+    
+        if last_score_date:
+            try:
+                last_date = datetime.strptime(last_score_date, "%Y-%m-%d").date()
+                current_date = datetime.strptime(dkey, "%Y-%m-%d").date()
+    
+                if current_date == last_date + timedelta(days=1):
+                    new_current = int(streak_data.get("current", 0)) + 1
+            except Exception:
+                new_current = 1
+    
+        streak_data["current"] = new_current
+        streak_data["best"] = max(int(streak_data.get("best", 0)), new_current)
+        streak_data["last_score_date"] = dkey
+    
+
     alerts = settings.get("alerts", DEFAULT_GUILD_SETTINGS["alerts"])
 
     # Zero roast
@@ -1072,19 +1219,25 @@ async def on_message(message: discord.Message):
 
     save_guild_scores(guild_id, all_scores, guild_scores, scores_sha, "MapTap score update")
     save_guild_users(guild_id, all_users, guild_users, users_sha, "MapTap user update")
-
+    save_guild_settings(guild_id, settings, "MapTap: update server streak")
     await react_safe(message, settings["emojis"]["recorded"], "✅")
 
 # =====================================================
 # SCHEDULED ACTIONS
 # =====================================================
-def build_daily_prompt() -> str:
+def build_daily_prompt(streak: int) -> str:
+    streak_line = (
+        f"🔥 **Your server is on a {streak}-day streak** — keep it going today!\n\n"
+        if streak > 0 else
+        "✨ No active streak yet — today’s a good day to start one!\n\n"
+    )
+
     return (
         "🗺️ **Daily MapTap is live!**\n"
         f"👉 {MAPTAP_URL}\n\n"
+        f"{streak_line}"
         "Post your results **exactly as shared from the app** so I can track scores ✈️"
     )
-
 def build_daily_scoreboard_text(date_key: str, rows: List[Tuple[str, int]]) -> str:
     try:
         pretty = datetime.strptime(date_key, "%Y-%m-%d").strftime("%A %d %B")
@@ -1117,8 +1270,27 @@ def build_weekly_roundup_text(mon: date, sun: date, rows: List[Tuple[str, int, i
 
 async def do_daily_post(guild_id: str, settings: Dict[str, Any]):
     ch = get_configured_channel(settings)
-    if ch:
-        await ch.send(build_daily_prompt())
+    if not ch:
+        return
+
+    tz = get_guild_tz(settings)
+    today = datetime.now(tz).date()
+
+    streak_data = settings.get("server_streak", {})
+    streak = int(streak_data.get("current", 0))
+    last_score_date = streak_data.get("last_score_date")
+
+    if last_score_date:
+        try:
+            last_date = datetime.strptime(last_score_date, "%Y-%m-%d").date()
+            if last_date not in (today, today - timedelta(days=1)):
+                streak = 0
+        except Exception:
+            streak = 0
+    else:
+        streak = 0
+
+    await ch.send(build_daily_prompt(streak))
 
 async def do_daily_scoreboard(guild_id: str, settings: Dict[str, Any]):
     ch = get_configured_channel(settings)
@@ -1126,7 +1298,7 @@ async def do_daily_scoreboard(guild_id: str, settings: Dict[str, Any]):
         return
 
     tz = get_guild_tz(settings)
-    _, guild_scores, scores_sha = load_guild_scores(guild_id)
+    _, guild_scores, _ = load_guild_scores(guild_id)
 
     today = datetime.now(tz).date().isoformat()
     bucket = guild_scores.get(today, {})
@@ -1646,7 +1818,6 @@ async def link_command(interaction: discord.Interaction):
     )
 
 
-# /post — admin only, fires the daily post message to the configured channel
 @client.tree.command(name="post", description="Manually send the daily MapTap post (admin)")
 async def post_command(interaction: discord.Interaction):
     if not isinstance(interaction.user, discord.Member):
@@ -1665,7 +1836,24 @@ async def post_command(interaction: discord.Interaction):
         await interaction.response.send_message("❌ No channel configured. Set one in `/maptapsettings` first.", ephemeral=True)
         return
 
-    await ch.send(build_daily_prompt())
+    tz = get_guild_tz(settings)
+    today = datetime.now(tz).date()
+
+    streak_data = settings.get("server_streak", {})
+    streak = int(streak_data.get("current", 0))
+    last_score_date = streak_data.get("last_score_date")
+
+    if last_score_date:
+        try:
+            last_date = datetime.strptime(last_score_date, "%Y-%m-%d").date()
+            if last_date not in (today, today - timedelta(days=1)):
+                streak = 0
+        except Exception:
+            streak = 0
+    else:
+        streak = 0
+
+    await ch.send(build_daily_prompt(streak))
     await interaction.response.send_message("✅ Post sent!", ephemeral=True)
 
 
@@ -1996,6 +2184,21 @@ async def help_command(interaction: discord.Interaction):
     )
 
     embed.set_footer(text=f"MapTap → {MAPTAP_URL}")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+# /vote — get the vote link
+@client.tree.command(name="vote", description="Vote for MapTap Companion")
+async def vote_command(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🗳️ Vote for MapTap Companion",
+        description=(
+            "If you're enjoying the bot, you can support it by voting here:\n\n"
+            "[👉 Click here to vote](https://top.gg/bot/1451248682807591003/vote)"
+        ),
+        color=0xF1C40F,
+    )
+    embed.set_footer(text="Votes help more people discover the bot ✈️")
+
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
