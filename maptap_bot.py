@@ -588,32 +588,6 @@ def initialise_all_server_streaks() -> Tuple[int, int]:
     return updated, total
 
 
-@client.tree.command(
-    name="initserverstreaks",
-    description="Initialise server streaks for all MapTap servers",
-)
-async def initserverstreaks(interaction: discord.Interaction):
-    if not _is_tracking_guild_admin(interaction):
-        await interaction.response.send_message("❌ No permission.", ephemeral=True)
-        return
-
-    await interaction.response.defer(ephemeral=True)
-
-    try:
-        updated, total = initialise_all_server_streaks()
-    except Exception as e:
-        await interaction.followup.send(
-            f"❌ Failed to initialise server streaks:\n`{e}`",
-            ephemeral=True
-        )
-        return
-
-    await interaction.followup.send(
-        f"✅ Server streak initialiser complete.\n"
-        f"Updated **{updated}** of **{total}** saved guilds.",
-        ephemeral=True
-    )
-
 # =====================================================
 # ROUND PARSING
 # =====================================================
@@ -2200,6 +2174,33 @@ async def vote_command(interaction: discord.Interaction):
     embed.set_footer(text="Votes help more people discover the bot ✈️")
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+@client.tree.command(
+    name="initserverstreaks",
+    description="Initialise server streaks for all MapTap servers",
+)
+async def initserverstreaks(interaction: discord.Interaction):
+    if not _is_tracking_guild_admin(interaction):
+        await interaction.response.send_message("❌ No permission.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    try:
+        updated, total = initialise_all_server_streaks()
+    except Exception as e:
+        await interaction.followup.send(
+            f"❌ Failed to initialise server streaks:\n`{e}`",
+            ephemeral=True
+        )
+        return
+
+    await interaction.followup.send(
+        f"✅ Server streak initialiser complete.\n"
+        f"Updated **{updated}** of **{total}** saved guilds.",
+        ephemeral=True
+    )
 
 
 # =====================================================
