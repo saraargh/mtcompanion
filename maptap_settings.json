@@ -7,11 +7,6 @@
       1476738036694913106
     ],
     "timezone": "Europe/London",
-    "server_streak": {
-      "current": 2,
-      "best": 31,
-      "last_score_date": "2026-04-16"
-    },
     "alerts": {
       "daily_post_enabled": true,
       "daily_scoreboard_enabled": true,
@@ -48,6 +43,11 @@
       "rivalry": "2026-04-16",
       "monthly_leaderboard": "2026-03-01"
     },
+    "server_streak": {
+      "current": 2,
+      "best": 31,
+      "last_score_date": "2026-04-16"
+    },
     "schedule": {
       "daily_post": "00:00",
       "daily_scoreboard": "23:30",
@@ -63,11 +63,6 @@
     "channel_id": 1489660602438914171,
     "admin_role_ids": [],
     "timezone": "Europe/London",
-    "server_streak": {
-      "current": 0,
-      "best": 1,
-      "last_score_date": "2026-04-05"
-    },
     "alerts": {
       "daily_post_enabled": true,
       "daily_scoreboard_enabled": true,
@@ -103,6 +98,11 @@
       "weekly_roundup": "2026-04-05",
       "rivalry": "2026-04-07",
       "monthly_leaderboard": null
+    },
+    "server_streak": {
+      "current": 0,
+      "best": 1,
+      "last_score_date": "2026-04-05"
     }
   },
   "1480706642310856798": {
@@ -112,11 +112,6 @@
       1489952993355890743
     ],
     "timezone": "Europe/London",
-    "server_streak": {
-      "current": 0,
-      "best": 6,
-      "last_score_date": "2026-04-09"
-    },
     "alerts": {
       "daily_post_enabled": true,
       "daily_scoreboard_enabled": true,
@@ -152,6 +147,11 @@
       "weekly_roundup": "2026-04-12",
       "rivalry": "2026-04-16",
       "monthly_leaderboard": null
+    },
+    "server_streak": {
+      "current": 0,
+      "best": 6,
+      "last_score_date": "2026-04-09"
     }
   },
   "1472971490134720552": {
@@ -161,11 +161,6 @@
       1491520915484311726
     ],
     "timezone": "Europe/London",
-    "server_streak": {
-      "current": 2,
-      "best": 3,
-      "last_score_date": "2026-04-16"
-    },
     "alerts": {
       "daily_post_enabled": true,
       "daily_scoreboard_enabled": true,
@@ -201,6 +196,11 @@
       "weekly_roundup": "2026-04-12",
       "rivalry": "2026-04-16",
       "monthly_leaderboard": null
+    },
+    "server_streak": {
+      "current": 2,
+      "best": 3,
+      "last_score_date": "2026-04-16"
     }
   },
   "230560367976251392": {
@@ -210,11 +210,6 @@
       758395459483467838
     ],
     "timezone": "PST8PDT",
-    "server_streak": {
-      "current": 3,
-      "best": 3,
-      "last_score_date": "2026-04-15"
-    },
     "alerts": {
       "daily_post_enabled": true,
       "daily_scoreboard_enabled": true,
@@ -250,6 +245,11 @@
       "weekly_roundup": "2026-04-12",
       "rivalry": "2026-04-16",
       "monthly_leaderboard": null
+    },
+    "server_streak": {
+      "current": 3,
+      "best": 3,
+      "last_score_date": "2026-04-15"
     }
   },
   "1429129667280896062": {
@@ -260,11 +260,6 @@
       1430212727153885308
     ],
     "timezone": "Europe/Berlin",
-    "server_streak": {
-      "current": 1,
-      "best": 1,
-      "last_score_date": "2026-04-14"
-    },
     "alerts": {
       "daily_post_enabled": false,
       "daily_scoreboard_enabled": true,
@@ -300,6 +295,11 @@
       "weekly_roundup": null,
       "rivalry": "2026-04-16",
       "monthly_leaderboard": null
+    },
+    "server_streak": {
+      "current": 1,
+      "best": 1,
+      "last_score_date": "2026-04-14"
     }
   },
   "1327237678466338932": {
@@ -309,11 +309,6 @@
       1328158928651157684
     ],
     "timezone": "Europe/London",
-    "server_streak": {
-      "current": 4,
-      "best": 4,
-      "last_score_date": "2026-04-17"
-    },
     "alerts": {
       "daily_post_enabled": true,
       "daily_scoreboard_enabled": true,
@@ -349,6 +344,11 @@
       "weekly_roundup": null,
       "rivalry": "2026-04-16",
       "monthly_leaderboard": null
+    },
+    "server_streak": {
+      "current": 4,
+      "best": 4,
+      "last_score_date": "2026-04-17"
     }
   },
   "1493645966727974912": {
@@ -358,11 +358,6 @@
       1493645966740422744
     ],
     "timezone": "Europe/London",
-    "server_streak": {
-      "current": 0,
-      "best": 0,
-      "last_score_date": null
-    },
     "alerts": {
       "daily_post_enabled": true,
       "daily_scoreboard_enabled": true,
@@ -397,6 +392,53 @@
       "daily_scoreboard": "2026-04-16",
       "weekly_roundup": null,
       "rivalry": "2026-04-16",
+      "monthly_leaderboard": null
+    },
+    "server_streak": {
+      "current": 0,
+      "best": 0,
+      "last_score_date": null
+    }
+  },
+  "285278316993183746": {
+    "enabled": true,
+    "channel_id": 1465851165836185713,
+    "admin_role_ids": [],
+    "timezone": "Europe/London",
+    "alerts": {
+      "daily_post_enabled": true,
+      "daily_scoreboard_enabled": true,
+      "weekly_roundup_enabled": true,
+      "rivalry_enabled": true,
+      "monthly_leaderboard_enabled": true,
+      "zero_score_roasts_enabled": true,
+      "pb_messages_enabled": true,
+      "perfect_score_enabled": true
+    },
+    "emojis": {
+      "recorded": "\ud83c\udf0f",
+      "too_high": "\u274c",
+      "rescan_ingested": "\ud83d\udd01",
+      "config_issue": "\u26a0\ufe0f"
+    },
+    "times": {
+      "daily_post": "00:00",
+      "daily_scoreboard": "23:30",
+      "weekly_roundup": "23:45",
+      "rivalry": "14:00",
+      "monthly_leaderboard": "00:10"
+    },
+    "minimum_days": {
+      "this_week": 3,
+      "this_month": 7,
+      "all_time": 0,
+      "date_range": 0
+    },
+    "last_run": {
+      "daily_post": null,
+      "daily_scoreboard": null,
+      "weekly_roundup": null,
+      "rivalry": null,
       "monthly_leaderboard": null
     }
   }
