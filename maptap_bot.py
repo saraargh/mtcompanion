@@ -515,7 +515,6 @@ class MapTapBot(discord.Client):
 
     async def setup_hook(self):
         try:
-            self.tree.clear_commands(guild=None)
             await self.tree.sync()
             print("✅ Synced global commands")
 
@@ -529,6 +528,7 @@ class MapTapBot(discord.Client):
         if not self.scheduler_tick.is_running():
             self.scheduler_tick.start()
             print("✅ scheduler_tick started in setup_hook()")
+
         
     @tasks.loop(minutes=1)
     async def scheduler_tick(self):
@@ -1687,11 +1687,11 @@ class BroadcastModal(discord.ui.Modal, title="Broadcast Message"):
             ephemeral=True,
         )
 
-@app_commands.guilds(DEV_GUILD)
 @client.tree.command(
     name="broadcast",
     description="Send a message to all servers (tracking guild admins only)",
 )
+@app_commands.guilds(DEV_GUILD)
 async def broadcast(interaction: discord.Interaction):
     if not _is_tracking_guild_admin(interaction):
         await interaction.response.send_message("❌ You don't have permission to do that.", ephemeral=True)
@@ -1702,11 +1702,11 @@ async def broadcast(interaction: discord.Interaction):
 # =====================================================
 # /nudge — DM owners of unconfigured servers (once per owner)
 # =====================================================
-@app_commands.guilds(DEV_GUILD)
 @client.tree.command(
     name="nudge",
     description="DM owners of servers that haven't set up the bot (tracking guild admins only)",
 )
+@app_commands.guilds(DEV_GUILD)
 async def nudge(interaction: discord.Interaction):
     if not _is_tracking_guild_admin(interaction):
         await interaction.response.send_message("❌ You don't have permission to do that.", ephemeral=True)
@@ -1756,11 +1756,11 @@ async def nudge(interaction: discord.Interaction):
 # server_list
 # =====================================================
 
-@app_commands.guilds(DEV_GUILD)
 @client.tree.command(
     name="serverlist",
     description="List all servers this bot is currently in",
 )
+@app_commands.guilds(DEV_GUILD)
 async def serverlist(interaction: discord.Interaction):
     if not _is_tracking_guild_admin(interaction):
         await interaction.response.send_message("❌ No permission.", ephemeral=True)
