@@ -16,11 +16,14 @@ from datetime import datetime, timedelta, date
 from zoneinfo import ZoneInfo, available_timezones, ZoneInfoNotFoundError
 from threading import Thread
 from typing import Any, Dict, Tuple, Optional, List
+from dotenv import load_dotenv
 
 import discord
 from discord.ext import tasks
 from discord import app_commands
 from flask import Flask
+
+load_dotenv()
 
 # =====================================================
 # CONFIG
