@@ -2175,7 +2175,6 @@ async def vote_command(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-
 @client.tree.command(
     name="initserverstreaks",
     description="Initialise server streaks for all MapTap servers",
