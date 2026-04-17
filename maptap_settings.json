@@ -45,7 +45,7 @@
       "daily_post": "2026-04-17",
       "daily_scoreboard": "2026-04-16",
       "weekly_roundup": "2026-04-12",
-      "rivalry": "2026-04-16",
+      "rivalry": "2026-04-17",
       "monthly_leaderboard": "2026-03-01"
     },
     "schedule": {
@@ -101,7 +101,7 @@
       "daily_post": "2026-04-07",
       "daily_scoreboard": "2026-04-07",
       "weekly_roundup": "2026-04-05",
-      "rivalry": "2026-04-07",
+      "rivalry": "2026-04-17",
       "monthly_leaderboard": null
     }
   },
@@ -150,7 +150,7 @@
       "daily_post": "2026-04-17",
       "daily_scoreboard": "2026-04-16",
       "weekly_roundup": "2026-04-12",
-      "rivalry": "2026-04-16",
+      "rivalry": "2026-04-17",
       "monthly_leaderboard": null
     }
   },
@@ -199,7 +199,7 @@
       "daily_post": "2026-04-17",
       "daily_scoreboard": "2026-04-16",
       "weekly_roundup": "2026-04-12",
-      "rivalry": "2026-04-16",
+      "rivalry": "2026-04-17",
       "monthly_leaderboard": null
     }
   },
@@ -396,7 +396,7 @@
       "daily_post": "2026-04-17",
       "daily_scoreboard": "2026-04-16",
       "weekly_roundup": null,
-      "rivalry": "2026-04-16",
+      "rivalry": "2026-04-17",
       "monthly_leaderboard": null
     }
   },
@@ -443,7 +443,7 @@
       "daily_post": null,
       "daily_scoreboard": null,
       "weekly_roundup": null,
-      "rivalry": null,
+      "rivalry": "2026-04-17",
       "monthly_leaderboard": null
     }
   }
