@@ -1656,12 +1656,43 @@ async def leaderboard(interaction: discord.Interaction):
 
 # /global
 async def _fetch_display_name(uid: str) -> str:
-    """Fetch a user's global display name, falling back to username, then raw ID."""
     try:
         user = await client.fetch_user(int(uid))
         return user.global_name or user.name
     except Exception:
         return f"Unknown ({uid})"
+
+def _global_scores_embed(top5: List[Tuple[str, float]], names: Dict[str, str], total: int) -> discord.Embed:
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    lines = [f"{medals[i]} **{names[uid]}** — **{round(avg)}**" for i, (uid, avg) in enumerate(top5)]
+    embed = discord.Embed(title="🌍 Global — Top Scores", description="\n".join(lines), color=0xF1C40F)
+    embed.set_footer(text=f"{total} players across all servers")
+    embed.timestamp = discord.utils.utcnow()
+    return embed
+
+def _global_streak_embed(top5: List[Tuple[str, int]], names: Dict[str, str], total: int) -> discord.Embed:
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    lines = [f"{medals[i]} **{names[uid]}** — **{best} days** 🔥" for i, (uid, best) in enumerate(top5)]
+    embed = discord.Embed(title="🌍 Global — Best Streaks", description="\n".join(lines), color=0xF1C40F)
+    embed.set_footer(text=f"{total} players across all servers")
+    embed.timestamp = discord.utils.utcnow()
+    return embed
+
+class GlobalLeaderboardView(discord.ui.View):
+    def __init__(self, top5_avg, top5_streak, names, total):
+        super().__init__(timeout=180)
+        self.top5_avg = top5_avg
+        self.top5_streak = top5_streak
+        self.names = names
+        self.total = total
+
+    @discord.ui.button(label="📊 Top Scores", style=discord.ButtonStyle.primary)
+    async def scores_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_global_scores_embed(self.top5_avg, self.names, self.total), view=self)
+
+    @discord.ui.button(label="🔥 Best Streaks", style=discord.ButtonStyle.secondary)
+    async def streaks_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_global_streak_embed(self.top5_streak, self.names, self.total), view=self)
 
 @client.tree.command(name="global", description="View the global MapTap top 5 across all servers")
 async def global_leaderboard(interaction: discord.Interaction):
@@ -1694,53 +1725,17 @@ async def global_leaderboard(interaction: discord.Interaction):
         await interaction.followup.send("No global scores found yet.", ephemeral=True)
         return
 
-    avg_rows: List[Tuple[str, float]] = sorted(
-        [(uid, sum(avgs) / len(avgs)) for uid, avgs in global_avgs.items()],
-        key=lambda x: x[1], reverse=True
-    )
-    streak_rows: List[Tuple[str, int]] = sorted(
-        global_best_streaks.items(),
-        key=lambda x: x[1], reverse=True
-    )
+    top5_avg = sorted([(uid, sum(avgs) / len(avgs)) for uid, avgs in global_avgs.items()], key=lambda x: x[1], reverse=True)[:5]
+    top5_streak = sorted(global_best_streaks.items(), key=lambda x: x[1], reverse=True)[:5]
+    total = len(global_avgs)
 
-    top5_avg = avg_rows[:5]
-    top5_streak = streak_rows[:5]
-
-    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
-
-    # Fetch display names for all unique users in both top 5s
     uids_needed = list({uid for uid, _ in top5_avg} | {uid for uid, _ in top5_streak})
     names: Dict[str, str] = {}
     for uid in uids_needed:
         names[uid] = await _fetch_display_name(uid)
 
-    avg_lines = []
-    for i, (uid, avg) in enumerate(top5_avg):
-        avg_lines.append(f"{medals[i]} **{names[uid]}** — **{round(avg)}**")
-
-    streak_lines = []
-    for i, (uid, best) in enumerate(top5_streak):
-        streak_lines.append(f"{medals[i]} **{names[uid]}** — **{best} days** 🔥")
-
-    embed = discord.Embed(
-        title="🌍 Global MapTap Leaderboard",
-        color=0xF1C40F,
-    )
-    embed.add_field(
-        name="📊 Top 5 — Average Score",
-        value="\n\n".join(avg_lines),
-        inline=False,
-    )
-    embed.add_field(name="\u200b", value="\u200b", inline=False)
-    embed.add_field(
-        name="🔥 Top 5 — Best Streak",
-        value="\n\n".join(streak_lines),
-        inline=False,
-    )
-    embed.set_footer(text=f"Ranked across all servers · {len(avg_rows)} players total")
-    embed.timestamp = discord.utils.utcnow()
-
-    await interaction.followup.send(embed=embed)
+    view = GlobalLeaderboardView(top5_avg, top5_streak, names, total)
+    await interaction.followup.send(embed=_global_scores_embed(top5_avg, names, total), view=view)
 
 
 # /rescan
