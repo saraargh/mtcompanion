@@ -1654,6 +1654,58 @@ async def leaderboard(interaction: discord.Interaction):
     )
 
 
+# /global
+@client.tree.command(name="global", description="View the global MapTap top 5 across all servers")
+async def global_leaderboard(interaction: discord.Interaction):
+    await interaction.response.defer()
+
+    all_users, _ = github_load_json(USERS_PATH, {})
+    if not isinstance(all_users, dict):
+        await interaction.followup.send("❌ Could not load global data.", ephemeral=True)
+        return
+
+    global_avgs: Dict[str, List[float]] = {}
+
+    for guild_id, guild_users in all_users.items():
+        if not isinstance(guild_users, dict):
+            continue
+        for uid, stats in guild_users.items():
+            try:
+                days = int(stats.get("days_played", 0))
+                if days <= 0:
+                    continue
+                avg = float(stats["total_points"]) / float(days)
+                global_avgs.setdefault(uid, []).append(avg)
+            except Exception:
+                continue
+
+    if not global_avgs:
+        await interaction.followup.send("No global scores found yet.", ephemeral=True)
+        return
+
+    rows: List[Tuple[str, float]] = [
+        (uid, sum(avgs) / len(avgs))
+        for uid, avgs in global_avgs.items()
+    ]
+    rows.sort(key=lambda x: x[1], reverse=True)
+    top5 = rows[:5]
+
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    lines = []
+    for i, (uid, avg) in enumerate(top5):
+        lines.append(f"{medals[i]} <@{uid}> — **{round(avg)}**")
+
+    embed = discord.Embed(
+        title="🌍 Global MapTap Leaderboard — Top 5",
+        description="\n".join(lines),
+        color=0xF1C40F,
+    )
+    embed.set_footer(text=f"Ranked by average score across all servers · {len(rows)} players total")
+    embed.timestamp = discord.utils.utcnow()
+
+    await interaction.followup.send(embed=embed)
+
+
 # /rescan
 @client.tree.command(name="rescan", description="Re-scan ALL MapTap posts and rebuild stats (admin)")
 async def rescan(interaction: discord.Interaction):
@@ -2124,6 +2176,7 @@ async def help_command(interaction: discord.Interaction):
         value=(
             "`/mymaptap` — Your personal stats, streaks, PBs and rankings\n"
             "`/leaderboard` — Server leaderboards (this week / month / all-time)\n"
+            "`/global` — Global top 5 players across all servers\n"
             "`/link` — Get the MapTap link privately\n"
             "`/post` — Manually send the daily post (admin)\n"
             "`/settimezone` — Set your server's timezone (admin)\n"
