@@ -1665,7 +1665,7 @@ async def _fetch_display_name(uid: str) -> str:
 def _global_scores_embed(top5: List[Tuple[str, float]], names: Dict[str, str], total: int) -> discord.Embed:
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
     lines = [f"{medals[i]} **{names[uid]}** — **{round(avg)}**" for i, (uid, avg) in enumerate(top5)]
-    embed = discord.Embed(title="🌍 Global — Top Scores", description="\n".join(lines), color=0xF1C40F)
+    embed = discord.Embed(title="🌍 Global — Top Average Scores", description="\n".join(lines), color=0xF1C40F)
     embed.set_footer(text=f"{total} players across all servers")
     embed.timestamp = discord.utils.utcnow()
     return embed
@@ -1690,7 +1690,7 @@ class GlobalLeaderboardView(discord.ui.View):
     async def scores_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=_global_scores_embed(self.top5_avg, self.names, self.total), view=self)
 
-    @discord.ui.button(label="🔥 Best Streaks", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="🔥 Best Streaks", style=discord.ButtonStyle.success)
     async def streaks_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=_global_streak_embed(self.top5_streak, self.names, self.total), view=self)
 
