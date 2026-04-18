@@ -1716,11 +1716,11 @@ async def global_leaderboard(interaction: discord.Interaction):
 
     avg_lines = []
     for i, (uid, avg) in enumerate(top5_avg):
-        avg_lines.append(f"{medals[i]} **{names[uid]}**\n┗ avg score: **{round(avg)}**")
+        avg_lines.append(f"{medals[i]} **{names[uid]}** — **{round(avg)}**")
 
     streak_lines = []
     for i, (uid, best) in enumerate(top5_streak):
-        streak_lines.append(f"{medals[i]} **{names[uid]}**\n┗ best streak: **{best} days** 🔥")
+        streak_lines.append(f"{medals[i]} **{names[uid]}** — **{best} days** 🔥")
 
     embed = discord.Embed(
         title="🌍 Global MapTap Leaderboard",
@@ -1731,6 +1731,7 @@ async def global_leaderboard(interaction: discord.Interaction):
         value="\n\n".join(avg_lines),
         inline=False,
     )
+    embed.add_field(name="\u200b", value="\u200b", inline=False)
     embed.add_field(
         name="🔥 Top 5 — Best Streak",
         value="\n\n".join(streak_lines),
