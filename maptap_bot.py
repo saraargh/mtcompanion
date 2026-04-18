@@ -2329,19 +2329,56 @@ async def send_welcome_message(settings: Dict[str, Any]):
     )
 
 # /help
-@client.tree.command(name="help", description="How to use MapTap Companion")
-async def help_command(interaction: discord.Interaction):
+def _help_home_embed(url: str) -> discord.Embed:
     embed = discord.Embed(
         title="🗺️ MapTap Companion — Help",
         description=(
-            f"Track your daily [MapTap]({MAPTAP_URL}) scores, compete on leaderboards, "
-            "and get automated posts — all inside Discord."
+            f"Track your daily [MapTap]({url}) scores, compete on leaderboards, "
+            "and get automated posts — all inside Discord.\n\n"
+            "Use the buttons below to explore."
         ),
-        color=0xF1C40F,
+        color=0x2ECC71,
     )
+    embed.set_footer(text=f"MapTap → {url}")
+    return embed
 
+def _help_commands_embed(url: str) -> discord.Embed:
+    embed = discord.Embed(
+        title="📋 Commands",
+        color=0x2ECC71,
+    )
     embed.add_field(
-        name="🚀 Getting started (admins)",
+        name="Stats & Leaderboards",
+        value=(
+            "`/mymaptap` — Your personal stats, streaks, PBs and rankings\n"
+            "`/leaderboard` — Server leaderboards (this week / month / all-time)\n"
+            "`/global` — Global top 5 players across all servers\n"
+            "`/predict` — Predict someone's score today\n"
+            "`/link` — Get the MapTap link privately"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="Admin",
+        value=(
+            "`/post` — Manually send the daily post\n"
+            "`/settimezone` — Set your server's timezone\n"
+            "`/maptapsettings` — Configure the bot\n"
+            "`/rescan` — Rebuild all stats from channel history\n"
+            "`/repair_stats` — Rebuild user stats from saved scores"
+        ),
+        inline=False,
+    )
+    embed.set_footer(text=f"MapTap → {url}")
+    return embed
+
+def _help_setup_embed(url: str) -> discord.Embed:
+    embed = discord.Embed(
+        title="🚀 Setup",
+        color=0x2ECC71,
+    )
+    embed.add_field(
+        name="Getting started",
         value=(
             "1. Run `/maptapsettings` and select your score-posting channel\n"
             "2. Optionally set admin roles who can manage the bot\n"
@@ -2351,25 +2388,6 @@ async def help_command(interaction: discord.Interaction):
         ),
         inline=False,
     )
-
-    embed.add_field(
-        name="📋 Commands",
-        value=(
-            "`/mymaptap` — Your personal stats, streaks, PBs and rankings\n"
-            "`/leaderboard` — Server leaderboards (this week / month / all-time)\n"
-            "`/global` — Global top 5 players across all servers\n"
-            "`/predict` — Predict someone's score today\n"
-            "`/link` — Get the MapTap link privately\n"
-            "`/post` — Manually send the daily post (admin)\n"
-            "`/settimezone` — Set your server's timezone (admin)\n"
-            "`/maptapsettings` — Configure the bot (admin)\n"
-            "`/rescan` — Rebuild all stats from channel history (admin)\n"
-            "`/repair_stats` — Rebuild user stats from saved scores (admin)\n"
-            "`/help` — This message"
-        ),
-        inline=False,
-    )
-
     embed.add_field(
         name="📬 Automatic posts",
         value=(
@@ -2381,19 +2399,52 @@ async def help_command(interaction: discord.Interaction):
         ),
         inline=False,
     )
+    embed.set_footer(text=f"MapTap → {url}")
+    return embed
 
+def _help_info_embed(url: str) -> discord.Embed:
+    embed = discord.Embed(
+        title="ℹ️ General Info",
+        color=0x2ECC71,
+    )
     embed.add_field(
         name="🎯 Score tracking",
         value=(
             "Post your MapTap results in the configured channel exactly as shared from the app. "
-            "The bot will react with 🌏 to confirm it's been recorded. "
-            "Personal bests, streaks, and roasts are all automatic."
+            "The bot will react to confirm it's been recorded. "
+            "Personal bests, streaks, and roasts are all automatic.\n\n"
         ),
         inline=False,
     )
+    embed.add_field(
+        name="🌐 Global leaderboard",
+        value="Players are ranked globally across all servers by average score and best streak. Use `/global` to see the top 5.",
+        inline=False,
+    )
+    embed.set_footer(text=f"MapTap → {url}")
+    return embed
 
-    embed.set_footer(text=f"MapTap → {MAPTAP_URL}")
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+class HelpView(discord.ui.View):
+    def __init__(self, url: str):
+        super().__init__(timeout=180)
+        self.url = url
+
+    @discord.ui.button(label="📋 Commands", style=discord.ButtonStyle.secondary, row=0)
+    async def commands_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_help_commands_embed(self.url), view=self)
+
+    @discord.ui.button(label="🚀 Setup", style=discord.ButtonStyle.secondary, row=0)
+    async def setup_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_help_setup_embed(self.url), view=self)
+
+    @discord.ui.button(label="ℹ️ General Info", style=discord.ButtonStyle.secondary, row=0)
+    async def info_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_help_info_embed(self.url), view=self)
+
+@client.tree.command(name="help", description="How to use MapTap Companion")
+async def help_command(interaction: discord.Interaction):
+    view = HelpView(MAPTAP_URL)
+    await interaction.response.send_message(embed=_help_home_embed(MAPTAP_URL), view=view, ephemeral=True)
 
 # /vote — get the vote link
 @client.tree.command(name="vote", description="Vote for MapTap Companion")
