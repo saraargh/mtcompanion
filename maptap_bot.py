@@ -1195,6 +1195,12 @@ async def on_message(message: discord.Message):
     save_guild_users(guild_id, all_users, guild_users, users_sha, "MapTap user update")
     save_guild_settings(guild_id, settings, "MapTap: update server streak")
     await react_safe(message, settings["emojis"]["recorded"], "✅")
+    if score >= 900:
+        await react_safe(message, "🔥", "🔥")
+        await react_safe(message, "🎉", "🎉")
+    elif score < 650:
+        await react_safe(message, "💩", "💩")
+        await react_safe(message, "🚽", "🚽")
 
 # =====================================================
 # SCHEDULED ACTIONS
@@ -1554,6 +1560,136 @@ async def mymaptap(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
+
+
+
+# /predict
+PREDICT_LAZY_SELF = [
+    "You've never posted a score. I can't predict nothing. 🪑",
+    "Zero scores. Zero data. Zero prediction. Get playing. 💀",
+    "Hard to predict someone who's never shown up. Just saying. 😬",
+    "My prediction: you still won't post a score today. Prove me wrong. 🫠",
+]
+
+PREDICT_LAZY_OTHER = [
+    "{name} has never posted a score. I'm a prediction bot, not a miracle worker. 🙄",
+    "Predicting {name} is easy — they don't play. Ever. 💀",
+    "{name} hasn't played a single game. My prediction: still won't today. 🫠",
+    "I'd predict {name} but they've never posted a score. Bit of a pattern tbh. 😬",
+    "{name} ghosting MapTap entirely. Nothing to predict. 👻",
+]
+
+PREDICT_LOW_SELF = [
+    "🔮 My prediction for you today: **{score}**. Rough. Maybe sit this one out.",
+    "🔮 Looking at your scores... **{score}**. Not great, not great at all.",
+    "🔮 The numbers have spoken: **{score}**. The numbers are not kind.",
+    "🔮 Predicted: **{score}**. I'd say aim higher but the data suggests otherwise.",
+    "🔮 **{score}**. Yikes. Maybe today's your comeback? Unlikely, but maybe.",
+]
+
+PREDICT_LOW_OTHER = [
+    "🔮 Predicting **{score}** for {name} today. Rough form, not gonna lie.",
+    "🔮 {name} is looking at about **{score}**. The bar is underground.",
+    "🔮 **{score}** for {name}. Someone's not been practising.",
+    "🔮 The data says **{score}** for {name}. The data is not impressed.",
+    "🔮 {name}: **{score}** predicted. A generous estimate, honestly.",
+]
+
+PREDICT_MID_SELF = [
+    "🔮 Prediction for today: **{score}**. Solidly average. As always.",
+    "🔮 My call: **{score}**. Not bad. Not good either. Very you.",
+    "🔮 **{score}**. Middle of the pack energy. Consistent, if nothing else.",
+    "🔮 Expecting **{score}** from you today. Safe. Predictable. Fine.",
+    "🔮 **{score}** incoming. Could be worse. Could definitely be better.",
+]
+
+PREDICT_MID_OTHER = [
+    "🔮 Predicting **{score}** for {name}. Solidly mid, as usual.",
+    "🔮 {name}'s looking at **{score}** today. Nothing to write home about.",
+    "🔮 **{score}** for {name}. Reliable in the most average way possible.",
+    "🔮 My call for {name}: **{score}**. The definition of fine.",
+    "🔮 {name}: **{score}** predicted. Perfectly unremarkable.",
+]
+
+PREDICT_HIGH_SELF = [
+    "🔮 Prediction: **{score}**. Actually impressive. Don't blow it.",
+    "🔮 The numbers like you today — **{score}**. Let's see if you deliver.",
+    "🔮 **{score}** predicted. High bar. No pressure. Loads of pressure.",
+    "🔮 Calling **{score}** for you. The form is there. Show up.",
+    "🔮 **{score}**. You've been putting in the work and it shows. Maybe.",
+]
+
+PREDICT_HIGH_OTHER = [
+    "🔮 **{score}** for {name} today. Genuinely solid if they pull it off.",
+    "🔮 Predicting **{score}** for {name}. The form is real.",
+    "🔮 {name}: **{score}** predicted. Could be a good day for them.",
+    "🔮 My call: **{score}** for {name}. Respect where it's due.",
+    "🔮 {name} looking strong — predicting **{score}**. Watch this space.",
+]
+
+PREDICT_CHAOS = [
+    "🌀 Throwing out the data entirely. Going with **{score}** for {name}. No notes.",
+    "🌀 The algorithm had a moment. Final answer: **{score}** for {name}. Good luck.",
+    "🌀 Absolutely no idea, but I'm feeling **{score}** for {name}. Don't @ me.",
+    "🌀 I dropped my calculator. **{score}** for {name}. That's my answer.",
+    "🌀 The vibes are chaos today. **{score}** for {name}. Trust the process.",
+    "🌀 Pure gut feeling: **{score}** for {name}. The stars said so.",
+]
+
+@client.tree.command(name="predict", description="Predict someone's MapTap score today")
+@app_commands.describe(user="The user to predict (defaults to you)")
+async def predict(interaction: discord.Interaction, user: Optional[discord.Member] = None):
+    if not interaction.guild_id:
+        await interaction.response.send_message("❌ Server only.", ephemeral=True)
+        return
+
+    target = user or interaction.user
+    guild_id = str(interaction.guild_id)
+    uid = str(target.id)
+
+    _, guild_scores, _ = load_guild_scores(guild_id)
+
+    all_scores: List[int] = []
+    for dkey, bucket in guild_scores.items():
+        if isinstance(bucket, dict) and uid in bucket:
+            try:
+                all_scores.append(int(bucket[uid]["score"]))
+            except Exception:
+                continue
+
+    target_name = target.nick or target.global_name or target.name
+    is_self = target.id == interaction.user.id
+
+    if not all_scores:
+        if is_self:
+            await interaction.response.send_message(random.choice(PREDICT_LAZY_SELF))
+        else:
+            msg = random.choice(PREDICT_LAZY_OTHER).replace("{name}", f"<@{uid}>")
+            await interaction.response.send_message(msg)
+        return
+
+    base_avg = round(sum(all_scores) / len(all_scores))
+
+    chaos_mode = random.random() < 0.2
+    if chaos_mode:
+        swing = random.randint(int(base_avg * 0.7), min(MAX_SCORE, int(base_avg * 1.3)))
+        if random.random() < 0.5:
+            predicted = max(0, swing - random.randint(50, 150))
+        else:
+            predicted = min(MAX_SCORE, swing + random.randint(50, 150))
+        msg = random.choice(PREDICT_CHAOS)
+    else:
+        variance = random.randint(-int(base_avg * 0.05), int(base_avg * 0.05))
+        predicted = max(0, min(MAX_SCORE, base_avg + variance))
+        if predicted < 650:
+            msg = random.choice(PREDICT_LOW_SELF if is_self else PREDICT_LOW_OTHER)
+        elif predicted >= 900:
+            msg = random.choice(PREDICT_HIGH_SELF if is_self else PREDICT_HIGH_OTHER)
+        else:
+            msg = random.choice(PREDICT_MID_SELF if is_self else PREDICT_MID_OTHER)
+
+    msg = msg.replace("{score}", str(predicted)).replace("{name}", f"<@{uid}>")
+    await interaction.response.send_message(msg)
 
 # /maptapsettings
 @client.tree.command(name="maptapsettings", description="Configure MapTap settings")
@@ -2222,6 +2358,7 @@ async def help_command(interaction: discord.Interaction):
             "`/mymaptap` — Your personal stats, streaks, PBs and rankings\n"
             "`/leaderboard` — Server leaderboards (this week / month / all-time)\n"
             "`/global` — Global top 5 players across all servers\n"
+            "`/predict` — Predict someone's score today\n"
             "`/link` — Get the MapTap link privately\n"
             "`/post` — Manually send the daily post (admin)\n"
             "`/settimezone` — Set your server's timezone (admin)\n"
