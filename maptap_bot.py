@@ -1622,10 +1622,23 @@ class LeaderboardSelect(discord.ui.Select):
         if not rows:
             embed.add_field(name="No data", value="No eligible scores for this period.", inline=False)
         else:
-            lines = [
-                f"{i}. {display_user(interaction.guild, uid)} — **{avg}**"
-                for i, (uid, avg) in enumerate(rows, start=1)
-            ]
+            lines = []
+            for i, (uid, avg) in enumerate(rows, start=1):
+                name = None
+                try:
+                    if interaction.guild:
+                        m = interaction.guild.get_member(int(uid))
+                        if m:
+                            name = m.nick or m.global_name or m.name
+                except Exception:
+                    pass
+                if not name:
+                    try:
+                        u = await client.fetch_user(int(uid))
+                        name = u.global_name or u.name
+                    except Exception:
+                        name = f"Unknown ({uid})"
+                lines.append(f"{i}. **{name}** — **{avg}**")
             embed.add_field(name="Top Players (avg score)", value="\n".join(lines), inline=False)
 
         await interaction.response.edit_message(embed=embed, view=self.view)
@@ -1672,8 +1685,8 @@ def _global_scores_embed(top5: List[Tuple[str, float]], names: Dict[str, str], t
 
 def _global_streak_embed(top5: List[Tuple[str, int]], names: Dict[str, str], total: int) -> discord.Embed:
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
-    lines = [f"{medals[i]} **{names[uid]}** — **{best} days** 🔥" for i, (uid, best) in enumerate(top5)]
-    embed = discord.Embed(title="🌍 Global — Best Streaks", description="\n".join(lines), color=0xF1C40F)
+    lines = [f"{medals[i]} **{names[uid]}** — **{best} days**" for i, (uid, best) in enumerate(top5)]
+    embed = discord.Embed(title="🔥 Global — Best Streaks", description="\n".join(lines), color=0xF1C40F)
     embed.set_footer(text=f"{total} players across all servers")
     embed.timestamp = discord.utils.utcnow()
     return embed
