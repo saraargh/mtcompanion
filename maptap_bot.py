@@ -1655,6 +1655,14 @@ async def leaderboard(interaction: discord.Interaction):
 
 
 # /global
+async def _fetch_display_name(uid: str) -> str:
+    """Fetch a user's global display name, falling back to username, then raw ID."""
+    try:
+        user = await client.fetch_user(int(uid))
+        return user.global_name or user.name
+    except Exception:
+        return f"Unknown ({uid})"
+
 @client.tree.command(name="global", description="View the global MapTap top 5 across all servers")
 async def global_leaderboard(interaction: discord.Interaction):
     await interaction.response.defer()
@@ -1665,6 +1673,7 @@ async def global_leaderboard(interaction: discord.Interaction):
         return
 
     global_avgs: Dict[str, List[float]] = {}
+    global_best_streaks: Dict[str, int] = {}
 
     for guild_id, guild_users in all_users.items():
         if not isinstance(guild_users, dict):
@@ -1676,6 +1685,8 @@ async def global_leaderboard(interaction: discord.Interaction):
                     continue
                 avg = float(stats["total_points"]) / float(days)
                 global_avgs.setdefault(uid, []).append(avg)
+                best = int(stats.get("best_streak", 0))
+                global_best_streaks[uid] = max(global_best_streaks.get(uid, 0), best)
             except Exception:
                 continue
 
@@ -1683,24 +1694,49 @@ async def global_leaderboard(interaction: discord.Interaction):
         await interaction.followup.send("No global scores found yet.", ephemeral=True)
         return
 
-    rows: List[Tuple[str, float]] = [
-        (uid, sum(avgs) / len(avgs))
-        for uid, avgs in global_avgs.items()
-    ]
-    rows.sort(key=lambda x: x[1], reverse=True)
-    top5 = rows[:5]
+    avg_rows: List[Tuple[str, float]] = sorted(
+        [(uid, sum(avgs) / len(avgs)) for uid, avgs in global_avgs.items()],
+        key=lambda x: x[1], reverse=True
+    )
+    streak_rows: List[Tuple[str, int]] = sorted(
+        global_best_streaks.items(),
+        key=lambda x: x[1], reverse=True
+    )
+
+    top5_avg = avg_rows[:5]
+    top5_streak = streak_rows[:5]
 
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
-    lines = []
-    for i, (uid, avg) in enumerate(top5):
-        lines.append(f"{medals[i]} <@{uid}> — **{round(avg)}**")
+
+    # Fetch display names for all unique users in both top 5s
+    uids_needed = list({uid for uid, _ in top5_avg} | {uid for uid, _ in top5_streak})
+    names: Dict[str, str] = {}
+    for uid in uids_needed:
+        names[uid] = await _fetch_display_name(uid)
+
+    avg_lines = []
+    for i, (uid, avg) in enumerate(top5_avg):
+        avg_lines.append(f"{medals[i]} **{names[uid]}**\n┗ avg score: **{round(avg)}**")
+
+    streak_lines = []
+    for i, (uid, best) in enumerate(top5_streak):
+        streak_lines.append(f"{medals[i]} **{names[uid]}**\n┗ best streak: **{best} days** 🔥")
 
     embed = discord.Embed(
-        title="🌍 Global MapTap Leaderboard — Top 5",
-        description="\n".join(lines),
+        title="🌍 Global MapTap Leaderboard",
         color=0xF1C40F,
     )
-    embed.set_footer(text=f"Ranked by average score across all servers · {len(rows)} players total")
+    embed.add_field(
+        name="📊 Top 5 — Average Score",
+        value="\n\n".join(avg_lines),
+        inline=False,
+    )
+    embed.add_field(
+        name="🔥 Top 5 — Best Streak",
+        value="\n\n".join(streak_lines),
+        inline=False,
+    )
+    embed.set_footer(text=f"Ranked across all servers · {len(avg_rows)} players total")
     embed.timestamp = discord.utils.utcnow()
 
     await interaction.followup.send(embed=embed)
