@@ -597,7 +597,7 @@
     "enabled": true,
     "channel_id": null,
     "admin_role_ids": [],
-    "timezone": "Europe/London",
+    "timezone": "America/New_York",
     "server_streak": {
       "current": 0,
       "best": 0,
