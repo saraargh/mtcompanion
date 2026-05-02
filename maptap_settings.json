@@ -592,5 +592,52 @@
       "rivalry": null,
       "monthly_leaderboard": null
     }
+  },
+  "1432531732552351768": {
+    "enabled": true,
+    "channel_id": null,
+    "admin_role_ids": [],
+    "timezone": "Europe/London",
+    "server_streak": {
+      "current": 0,
+      "best": 0,
+      "last_score_date": null
+    },
+    "alerts": {
+      "daily_post_enabled": false,
+      "daily_scoreboard_enabled": true,
+      "weekly_roundup_enabled": false,
+      "rivalry_enabled": true,
+      "monthly_leaderboard_enabled": true,
+      "zero_score_roasts_enabled": true,
+      "pb_messages_enabled": true,
+      "perfect_score_enabled": true
+    },
+    "emojis": {
+      "recorded": "\ud83c\udf0f",
+      "too_high": "\u274c",
+      "rescan_ingested": "\ud83d\udd01",
+      "config_issue": "\u26a0\ufe0f"
+    },
+    "times": {
+      "daily_post": "00:00",
+      "daily_scoreboard": "23:30",
+      "weekly_roundup": "23:45",
+      "rivalry": "14:00",
+      "monthly_leaderboard": "00:10"
+    },
+    "minimum_days": {
+      "this_week": 3,
+      "this_month": 7,
+      "all_time": 0,
+      "date_range": 0
+    },
+    "last_run": {
+      "daily_post": null,
+      "daily_scoreboard": null,
+      "weekly_roundup": null,
+      "rivalry": null,
+      "monthly_leaderboard": null
+    }
   }
 }
