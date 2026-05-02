@@ -546,7 +546,10 @@
   "208621163776049152": {
     "enabled": true,
     "channel_id": 1500209805938135131,
-    "admin_role_ids": [],
+    "admin_role_ids": [
+      296501465772589057,
+      1432926777143070820
+    ],
     "timezone": "Europe/London",
     "server_streak": {
       "current": 0,
