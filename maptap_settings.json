@@ -740,13 +740,13 @@
     "enabled": true,
     "channel_id": 1501031815463440515,
     "admin_role_ids": [
-      1501932594059677756
+      690340514750660662
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 1,
-      "best": 1,
-      "last_score_date": "2026-05-07"
+      "current": 0,
+      "best": 0,
+      "last_score_date": null
     },
     "alerts": {
       "daily_post_enabled": true,
