@@ -835,12 +835,12 @@
     }
   },
   "357281973007548428": {
-    "enabled": true,
+    "enabled": false,
     "channel_id": 372161729532133376,
     "admin_role_ids": [
       357284335457533955
     ],
-    "timezone": "EST",
+    "timezone": "Europe/London",
     "server_streak": {
       "current": 0,
       "best": 0,
