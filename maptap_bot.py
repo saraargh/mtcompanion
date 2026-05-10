@@ -1915,7 +1915,7 @@ async def _fetch_display_name(uid: str) -> str:
 def _global_scores_embed(top10: List[Tuple[str, float]], names: Dict[str, str], total: int) -> discord.Embed:
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
     lines = [f"{medals[i]} **{names[uid]}** — **{round(avg)}**" for i, (uid, avg) in enumerate(top10)]
-    embed = discord.Embed(title="🌍 Global — Top Average Scores", description="\n".join(lines), color=0xF1C40F)
+    embed = discord.Embed(title="🌍 Global — Top Scorers", description="\n".join(lines), color=0xF1C40F)
     embed.set_footer(text=f"{total} players across all servers")
     embed.timestamp = discord.utils.utcnow()
     return embed
@@ -1924,6 +1924,14 @@ def _global_streak_embed(top5: List[Tuple[str, int]], names: Dict[str, str], tot
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
     lines = [f"{medals[i]} **{names[uid]}** — **{best} days**" for i, (uid, best) in enumerate(top5)]
     embed = discord.Embed(title="🔥 Global — Best Streaks", description="\n".join(lines), color=0xF1C40F)
+    embed.set_footer(text=f"{total} players across all servers")
+    embed.timestamp = discord.utils.utcnow()
+    return embed
+
+def _global_current_streak_embed(top5: List[Tuple[str, int]], names: Dict[str, str], total: int) -> discord.Embed:
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    lines = [f"{medals[i]} **{names[uid]}** — **{streak} days**" for i, (uid, streak) in enumerate(top5)]
+    embed = discord.Embed(title="⚡ Global — Current Streaks", description="\n".join(lines) if lines else "No active streaks right now.", color=0xF1C40F)
     embed.set_footer(text=f"{total} players across all servers")
     embed.timestamp = discord.utils.utcnow()
     return embed
@@ -1944,15 +1952,16 @@ def _global_servers_embed(top5_servers: List[Tuple[str, str, int]]) -> discord.E
     return embed
 
 class GlobalLeaderboardView(discord.ui.View):
-    def __init__(self, top10_avg, top5_streak, top5_servers, names, total):
+    def __init__(self, top10_avg, top5_streak, top5_current, top5_servers, names, total):
         super().__init__(timeout=180)
         self.top10_avg = top10_avg
         self.top5_streak = top5_streak
+        self.top5_current = top5_current
         self.top5_servers = top5_servers
         self.names = names
         self.total = total
 
-    @discord.ui.button(label="📊 Top Scores", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="📊 Top Scorers", style=discord.ButtonStyle.secondary)
     async def scores_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=_global_scores_embed(self.top10_avg, self.names, self.total), view=self)
 
@@ -1960,11 +1969,15 @@ class GlobalLeaderboardView(discord.ui.View):
     async def streaks_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=_global_streak_embed(self.top5_streak, self.names, self.total), view=self)
 
+    @discord.ui.button(label="⚡ Current Streaks", style=discord.ButtonStyle.secondary)
+    async def current_streaks_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_global_current_streak_embed(self.top5_current, self.names, self.total), view=self)
+
     @discord.ui.button(label="🏠 Server Streaks", style=discord.ButtonStyle.secondary)
     async def servers_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=_global_servers_embed(self.top5_servers), view=self)
 
-@client.tree.command(name="global", description="View the global MapTap top 5 across all servers")
+@client.tree.command(name="global", description="View the global MapTap leaderboards across all servers")
 async def global_leaderboard(interaction: discord.Interaction):
     await interaction.response.defer()
 
@@ -2027,12 +2040,30 @@ async def global_leaderboard(interaction: discord.Interaction):
     server_streaks.sort(key=lambda x: x[2], reverse=True)
     top5_servers = server_streaks[:5]
 
-    uids_needed = list({uid for uid, _ in top10_avg} | {uid for uid, _ in top5_streak})
+    # Build current streaks from scores data
+    all_scores, _ = github_load_json(SCORES_PATH, {})
+    global_current_streaks: Dict[str, int] = {}
+    for guild_id, guild_users in all_users.items():
+        if not isinstance(guild_users, dict):
+            continue
+        guild_scores = all_scores.get(guild_id, {}) if isinstance(all_scores, dict) else {}
+        guild_settings = all_settings.get(guild_id, _normalize_guild_settings({}))
+        tz = get_guild_tz(guild_settings)
+        for uid in guild_users:
+            try:
+                cur = calculate_current_streak(guild_scores, uid, tz)
+                if cur > 0:
+                    global_current_streaks[uid] = max(global_current_streaks.get(uid, 0), cur)
+            except Exception:
+                continue
+    top5_current = sorted(global_current_streaks.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    uids_needed = list({uid for uid, _ in top10_avg} | {uid for uid, _ in top5_streak} | {uid for uid, _ in top5_current})
     names: Dict[str, str] = {}
     for uid in uids_needed:
         names[uid] = await _fetch_display_name(uid)
 
-    view = GlobalLeaderboardView(top10_avg, top5_streak, top5_servers, names, total)
+    view = GlobalLeaderboardView(top10_avg, top5_streak, top5_current, top5_servers, names, total)
     await interaction.followup.send(embed=_global_scores_embed(top10_avg, names, total), view=view)
 
 
