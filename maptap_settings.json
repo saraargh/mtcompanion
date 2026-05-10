@@ -779,8 +779,8 @@
     },
     "last_run": {
       "daily_post": "2026-05-10",
-      "daily_scoreboard": "2026-05-09",
-      "weekly_roundup": null,
+      "daily_scoreboard": "2026-05-10",
+      "weekly_roundup": "2026-05-10",
       "rivalry": "2026-05-10",
       "monthly_leaderboard": null
     }
@@ -879,7 +879,7 @@
       "daily_post": "2026-05-10",
       "daily_scoreboard": null,
       "weekly_roundup": null,
-      "rivalry": null,
+      "rivalry": "2026-05-10",
       "monthly_leaderboard": null
     }
   }
