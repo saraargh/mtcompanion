@@ -1916,7 +1916,7 @@ def _global_scores_embed(top10: List[Tuple[str, float]], names: Dict[str, str], 
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
     lines = [f"{medals[i]} **{names[uid]}** — **{round(avg)}**" for i, (uid, avg) in enumerate(top10)]
     embed = discord.Embed(title="🌍 Global — Top Average Scores", description="\n".join(lines), color=0xF1C40F)
-    embed.set_footer(text=f"{total} qualified players (5+ days) across all servers")
+    embed.set_footer(text=f"{total} players across all servers")
     embed.timestamp = discord.utils.utcnow()
     return embed
 
@@ -1924,7 +1924,7 @@ def _global_streak_embed(top5: List[Tuple[str, int]], names: Dict[str, str], tot
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
     lines = [f"{medals[i]} **{names[uid]}** — **{best} days**" for i, (uid, best) in enumerate(top5)]
     embed = discord.Embed(title="🔥 Global — Best Streaks", description="\n".join(lines), color=0xF1C40F)
-    embed.set_footer(text=f"{total} qualified players (5+ days) across all servers")
+    embed.set_footer(text=f"{total} players across all servers")
     embed.timestamp = discord.utils.utcnow()
     return embed
 
@@ -1935,11 +1935,11 @@ def _global_servers_embed(top5_servers: List[Tuple[str, str, int]]) -> discord.E
         for i, (guild_id, name, best) in enumerate(top5_servers)
     ]
     embed = discord.Embed(
-        title="🏠 Global — Top Server Streaks",
-        description="\n".join(lines) if lines else "No server streak data yet.",
+        title="🏠 Global — Current Server Streaks",
+        description="\n".join(lines) if lines else "No active server streaks right now.",
         color=0xF1C40F,
     )
-    embed.set_footer(text="Ranked by best server streak")
+    embed.set_footer(text="Ranked by current server streak")
     embed.timestamp = discord.utils.utcnow()
     return embed
 
@@ -1952,15 +1952,15 @@ class GlobalLeaderboardView(discord.ui.View):
         self.names = names
         self.total = total
 
-    @discord.ui.button(label="📊 Top Scores", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="📊 Top Scores", style=discord.ButtonStyle.secondary)
     async def scores_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=_global_scores_embed(self.top10_avg, self.names, self.total), view=self)
 
-    @discord.ui.button(label="🔥 Best Streaks", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="🔥 Best Streaks", style=discord.ButtonStyle.secondary)
     async def streaks_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=_global_streak_embed(self.top5_streak, self.names, self.total), view=self)
 
-    @discord.ui.button(label="🏠 Servers", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="🏠 Server Streaks", style=discord.ButtonStyle.secondary)
     async def servers_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=_global_servers_embed(self.top5_servers), view=self)
 
@@ -1975,6 +1975,20 @@ async def global_leaderboard(interaction: discord.Interaction):
 
     global_avgs: Dict[str, List[float]] = {}
     global_best_streaks: Dict[str, int] = {}
+
+    for guild_id, guild_users in all_users.items():
+        if not isinstance(guild_users, dict):
+            continue
+    all_player_ids: set = set()
+    for guild_id, guild_users in all_users.items():
+        if not isinstance(guild_users, dict):
+            continue
+        for uid, stats in guild_users.items():
+            try:
+                if int(stats.get("days_played", 0)) > 0:
+                    all_player_ids.add(uid)
+            except Exception:
+                continue
 
     for guild_id, guild_users in all_users.items():
         if not isinstance(guild_users, dict):
@@ -1997,19 +2011,19 @@ async def global_leaderboard(interaction: discord.Interaction):
 
     top10_avg = sorted([(uid, sum(avgs) / len(avgs)) for uid, avgs in global_avgs.items()], key=lambda x: x[1], reverse=True)[:10]
     top5_streak = sorted(global_best_streaks.items(), key=lambda x: x[1], reverse=True)[:5]
-    total = len(global_avgs)
+    total = len(all_player_ids)
 
     # Build top 5 servers by best streak from settings
     all_settings, _ = load_all_settings()
     server_streaks: List[Tuple[str, str, int]] = []
     for gid, gsettings in all_settings.items():
         streak_data = gsettings.get("server_streak", {})
-        best = int(streak_data.get("best", 0))
-        if best <= 0:
+        current = int(streak_data.get("current", 0))
+        if current <= 0:
             continue
         guild_obj = client.get_guild(int(gid))
         name = guild_obj.name if guild_obj else f"Server {gid}"
-        server_streaks.append((gid, name, best))
+        server_streaks.append((gid, name, current))
     server_streaks.sort(key=lambda x: x[2], reverse=True)
     top5_servers = server_streaks[:5]
 
