@@ -36,6 +36,7 @@ GITHUB_REPO = os.getenv("GITHUB_REPO")  # e.g. "saraargh/the-pilot"
 SCORES_PATH = os.getenv("MAPTAP_SCORES_PATH", "data/maptap_scores.json")
 USERS_PATH = os.getenv("MAPTAP_USERS_PATH", "data/maptap_users.json")
 SETTINGS_PATH = os.getenv("MAPTAP_SETTINGS_PATH", "data/maptap_settings.json")
+MILES_PATH = os.getenv("MAPTAP_MILES_PATH", "data/maptap_miles.json")
 
 MAPTAP_URL = os.getenv("MAPTAP_URL", "https://www.maptap.gg")
 CLEANUP_DAYS = int(os.getenv("MAPTAP_CLEANUP_DAYS", "69"))
@@ -61,6 +62,11 @@ TOPGG_TOKEN = os.getenv("TOPGG_TOKEN")
 SCORE_REGEX = re.compile(r"Final\s*score:\s*(\d+)", re.IGNORECASE)
 ROUND_ZERO_REGEX = re.compile(r"(^|\s)0(?!\d)")
 MAPTAP_HINT_REGEX = re.compile(r"\bmaptap\.gg\b", re.IGNORECASE)
+# Matches "May 5", "5 May", "May 5th", "5th May" etc.
+DATE_IN_CONTENT_REGEX = re.compile(
+    r"\b(?:(\d{1,2})(?:st|nd|rd|th)?\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)|(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?)\b",
+    re.IGNORECASE,
+)
 
 # =====================================================
 # DEFAULT SETTINGS (per guild)
@@ -390,6 +396,26 @@ def save_guild_users(guild_id: str, all_users: Dict[str, Any], guild_users: Dict
     return github_save_json(USERS_PATH, all_users, sha, message)
 
 # =====================================================
+# MILES HELPERS (global currency)
+# =====================================================
+def load_miles() -> Tuple[Dict[str, Any], Optional[str]]:
+    """Returns {uid: {'miles': int, 'voted_at': isostr|None}}, sha."""
+    data, sha = github_load_json(MILES_PATH, {})
+    if not isinstance(data, dict):
+        data = {}
+    return data, sha
+
+def save_miles(data: Dict[str, Any], sha: Optional[str], message: str) -> Optional[str]:
+    return github_save_json(MILES_PATH, data, sha, message)
+
+def get_user_miles(uid: str) -> int:
+    data, _ = load_miles()
+    return int(data.get(uid, {}).get("miles", 0))
+
+def _default_miles_entry() -> Dict[str, Any]:
+    return {"miles": 0, "voted_at": None, "last_polled_vote": None}
+
+# =====================================================
 # USER STATS DEFAULT
 # =====================================================
 def default_user_stats() -> Dict[str, Any]:
@@ -484,7 +510,7 @@ def calculate_global_rank(user_id: str) -> Tuple[Optional[int], int]:
         for uid, stats in guild_users.items():
             try:
                 days = int(stats.get("days_played", 0))
-                if days <= 0:
+                if days < 5:
                     continue
                 avg = float(stats["total_points"]) / float(days)
                 global_avgs.setdefault(uid, []).append(avg)
@@ -599,6 +625,39 @@ def has_zero_round(text: str) -> bool:
             return True
     return False
 
+def parse_date_from_content(text: str, msg_time: datetime) -> Optional[str]:
+    """
+    Try to find a date like 'May 5' or '5 May' in the message text.
+    Uses the Discord message's year. Returns YYYY-MM-DD or None.
+    """
+    MONTH_MAP = {
+        "jan": 1, "january": 1, "feb": 2, "february": 2,
+        "mar": 3, "march": 3, "apr": 4, "april": 4,
+        "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
+        "aug": 8, "august": 8, "sep": 9, "september": 9,
+        "oct": 10, "october": 10, "nov": 11, "november": 11,
+        "dec": 12, "december": 12,
+    }
+    m = DATE_IN_CONTENT_REGEX.search(text)
+    if not m:
+        return None
+    try:
+        if m.group(1) and m.group(2):
+            day = int(m.group(1))
+            month = MONTH_MAP[m.group(2).lower()[:3]]
+        else:
+            month = MONTH_MAP[m.group(3).lower()[:3]]
+            day = int(m.group(4))
+        year = msg_time.year
+        parsed = date(year, month, day)
+        # Sanity check: don't allow future dates or dates more than 7 days old
+        today = msg_time.date()
+        if parsed > today or (today - parsed).days > 7:
+            return None
+        return parsed.isoformat()
+    except Exception:
+        return None
+
 # ==============
 # update topgg
 # =============
@@ -651,6 +710,63 @@ class MapTapBot(discord.Client):
         if not self.scheduler_tick.is_running():
             self.scheduler_tick.start()
             print("✅ scheduler_tick started in setup_hook()")
+
+        if not self.poll_topgg_votes.is_running():
+            self.poll_topgg_votes.start()
+            print("✅ poll_topgg_votes started in setup_hook()")
+
+    @tasks.loop(minutes=2)
+    async def poll_topgg_votes(self):
+        """Poll top.gg every 2 minutes to credit Miles to users who have voted."""
+        if not TOPGG_TOKEN or not client.user:
+            return
+
+        miles_data, miles_sha = load_miles()
+        changed = False
+        now = datetime.now(ZoneInfo("UTC"))
+
+        for uid, entry in list(miles_data.items()):
+            last_polled = entry.get("last_polled_vote")
+            # Only re-poll if we haven't confirmed a vote in the last 12 hours
+            if last_polled:
+                try:
+                    lp_dt = datetime.fromisoformat(last_polled)
+                    if (now - lp_dt).total_seconds() < 43200:
+                        continue
+                except Exception:
+                    pass
+
+            try:
+                r = requests.get(
+                    f"https://top.gg/api/bots/{client.user.id}/check",
+                    headers={"Authorization": TOPGG_TOKEN},
+                    params={"userId": uid},
+                    timeout=10,
+                )
+                if r.status_code != 200:
+                    continue
+                voted = r.json().get("voted", 0)
+                if voted == 1:
+                    voted_at = entry.get("voted_at")
+                    already_credited = False
+                    if voted_at:
+                        try:
+                            va_dt = datetime.fromisoformat(voted_at)
+                            if (now - va_dt).total_seconds() < 43200:
+                                already_credited = True
+                        except Exception:
+                            pass
+                    if not already_credited:
+                        entry["miles"] = int(entry.get("miles", 0)) + 1
+                        entry["voted_at"] = now.isoformat()
+                        changed = True
+                entry["last_polled_vote"] = now.isoformat()
+                miles_data[uid] = entry
+            except Exception:
+                continue
+
+        if changed:
+            save_miles(miles_data, miles_sha, "MapTap: credit miles for votes")
 
         
     @tasks.loop(minutes=1)
@@ -753,8 +869,11 @@ async def on_ready():
         if not client.scheduler_tick.is_running():
             client.scheduler_tick.start()
             print("✅ scheduler_tick started from on_ready() fallback")
+        if not client.poll_topgg_votes.is_running():
+            client.poll_topgg_votes.start()
+            print("✅ poll_topgg_votes started from on_ready() fallback")
     except Exception as e:
-        print("❌ Failed to start scheduler_tick in on_ready:", e)
+        print("❌ Failed to start tasks in on_ready:", e)
 
 # =====================================================
 # PERMISSIONS / CHANNEL
@@ -1091,7 +1210,10 @@ async def on_message(message: discord.Message):
 
     tz = get_guild_tz(settings)
     msg_time = message.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
-    dkey = today_key(msg_time, tz)
+
+    # Try to parse date from message content first (e.g. "May 5", "5 May")
+    parsed_dkey = parse_date_from_content(message.content or "", msg_time)
+    dkey = parsed_dkey if parsed_dkey else today_key(msg_time, tz)
     uid = str(message.author.id)
 
     all_scores, guild_scores, scores_sha = load_guild_scores(guild_id)
@@ -1107,15 +1229,20 @@ async def on_message(message: discord.Message):
     guild_users[uid].setdefault("total_points", 0)
     guild_users[uid].setdefault("days_played", 0)
 
-    # Replace same-day entry without double-counting days
+    # Duplicate score detection — keep first score, embarrass them publicly
     if uid in guild_scores[dkey]:
-        try:
-            guild_users[uid]["total_points"] -= int(guild_scores[dkey][uid].get("score", 0))
-        except Exception:
-            pass
-    else:
-        guild_users[uid]["days_played"] += 1
+        existing_score = int(guild_scores[dkey][uid].get("score", 0))
+        DUPLICATE_MSGS = [
+            f"🙄 {message.author.mention} already submitted a score today (**{existing_score}**). Nice try though.",
+            f"😂 {message.author.mention} thought they could sneak in a better score — already got **{existing_score}** locked in, cheers!",
+            f"🗺️ One map per day, {message.author.mention}. Your **{existing_score}** is already on the board.",
+            f"👀 {message.author.mention} tried to update their score to **{score}** but we're keeping the **{existing_score}**. The first one counts!",
+            f"🤡 Duplicate detected! {message.author.mention}'s **{existing_score}** is staying put. No score shopping here.",
+        ]
+        await message.channel.send(random.choice(DUPLICATE_MSGS))
+        return
 
+    guild_users[uid]["days_played"] += 1
     guild_users[uid]["total_points"] += score
     guild_scores[dkey][uid] = {"score": score, "updated_at": msg_time.isoformat()}
 
@@ -1490,6 +1617,8 @@ async def mymaptap(interaction: discord.Interaction):
     week_start = today - timedelta(days=today.weekday())
     week_rank, week_total = calculate_period_rank(guild_scores, uid, week_start, today)
     global_rank, global_total = calculate_global_rank(uid)
+    days_played = int(stats.get("days_played", 0))
+    miles_balance = get_user_miles(uid)
 
     pb = stats["personal_best"]
     pb_date = pb.get("date", "N/A")
@@ -1526,14 +1655,25 @@ async def mymaptap(interaction: discord.Interaction):
         inline=False,
     )
 
-    global_rank_line = (
-        f"🌍 Global Rank: **#{global_rank} of {global_total}**"
-        if global_rank else "🌍 Global Rank: **—**"
-    )
+    if days_played < 5:
+        global_rank_line = "🌍 Global Rank: **Unranked** *(play 5 days to qualify)*"
+    elif global_rank:
+        global_rank_line = f"🌍 Global Rank: **#{global_rank} of {global_total}**"
+    else:
+        global_rank_line = "🌍 Global Rank: **—**"
 
     embed.add_field(
         name="🌐 Global",
         value=global_rank_line,
+        inline=False,
+    )
+
+    embed.add_field(
+        name="✈️ Miles",
+        value=(
+            f"Balance: **{miles_balance} Mile{'s' if miles_balance != 1 else ''}**\n"
+            f"*Earn Miles by voting on top.gg (`/vote`). Spend 5 to restore a lost streak (`/redeem`).*"
+        ),
         inline=False,
     )
 
@@ -1811,11 +1951,11 @@ async def _fetch_display_name(uid: str) -> str:
     except Exception:
         return f"Unknown ({uid})"
 
-def _global_scores_embed(top5: List[Tuple[str, float]], names: Dict[str, str], total: int) -> discord.Embed:
-    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
-    lines = [f"{medals[i]} **{names[uid]}** — **{round(avg)}**" for i, (uid, avg) in enumerate(top5)]
+def _global_scores_embed(top10: List[Tuple[str, float]], names: Dict[str, str], total: int) -> discord.Embed:
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+    lines = [f"{medals[i]} **{names[uid]}** — **{round(avg)}**" for i, (uid, avg) in enumerate(top10)]
     embed = discord.Embed(title="🌍 Global — Top Average Scores", description="\n".join(lines), color=0xF1C40F)
-    embed.set_footer(text=f"{total} players across all servers")
+    embed.set_footer(text=f"{total} qualified players (5+ days) across all servers")
     embed.timestamp = discord.utils.utcnow()
     return embed
 
@@ -1823,25 +1963,45 @@ def _global_streak_embed(top5: List[Tuple[str, int]], names: Dict[str, str], tot
     medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
     lines = [f"{medals[i]} **{names[uid]}** — **{best} days**" for i, (uid, best) in enumerate(top5)]
     embed = discord.Embed(title="🔥 Global — Best Streaks", description="\n".join(lines), color=0xF1C40F)
-    embed.set_footer(text=f"{total} players across all servers")
+    embed.set_footer(text=f"{total} qualified players (5+ days) across all servers")
+    embed.timestamp = discord.utils.utcnow()
+    return embed
+
+def _global_servers_embed(top5_servers: List[Tuple[str, str, int]]) -> discord.Embed:
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    lines = [
+        f"{medals[i]} **{name}** — **{best} day streak**"
+        for i, (guild_id, name, best) in enumerate(top5_servers)
+    ]
+    embed = discord.Embed(
+        title="🏠 Global — Top Server Streaks",
+        description="\n".join(lines) if lines else "No server streak data yet.",
+        color=0xF1C40F,
+    )
+    embed.set_footer(text="Ranked by best server streak")
     embed.timestamp = discord.utils.utcnow()
     return embed
 
 class GlobalLeaderboardView(discord.ui.View):
-    def __init__(self, top5_avg, top5_streak, names, total):
+    def __init__(self, top10_avg, top5_streak, top5_servers, names, total):
         super().__init__(timeout=180)
-        self.top5_avg = top5_avg
+        self.top10_avg = top10_avg
         self.top5_streak = top5_streak
+        self.top5_servers = top5_servers
         self.names = names
         self.total = total
 
     @discord.ui.button(label="📊 Top Scores", style=discord.ButtonStyle.primary)
     async def scores_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.edit_message(embed=_global_scores_embed(self.top5_avg, self.names, self.total), view=self)
+        await interaction.response.edit_message(embed=_global_scores_embed(self.top10_avg, self.names, self.total), view=self)
 
     @discord.ui.button(label="🔥 Best Streaks", style=discord.ButtonStyle.success)
     async def streaks_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(embed=_global_streak_embed(self.top5_streak, self.names, self.total), view=self)
+
+    @discord.ui.button(label="🏠 Servers", style=discord.ButtonStyle.secondary)
+    async def servers_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=_global_servers_embed(self.top5_servers), view=self)
 
 @client.tree.command(name="global", description="View the global MapTap top 5 across all servers")
 async def global_leaderboard(interaction: discord.Interaction):
@@ -1861,7 +2021,7 @@ async def global_leaderboard(interaction: discord.Interaction):
         for uid, stats in guild_users.items():
             try:
                 days = int(stats.get("days_played", 0))
-                if days <= 0:
+                if days < 5:
                     continue
                 avg = float(stats["total_points"]) / float(days)
                 global_avgs.setdefault(uid, []).append(avg)
@@ -1874,17 +2034,142 @@ async def global_leaderboard(interaction: discord.Interaction):
         await interaction.followup.send("No global scores found yet.", ephemeral=True)
         return
 
-    top5_avg = sorted([(uid, sum(avgs) / len(avgs)) for uid, avgs in global_avgs.items()], key=lambda x: x[1], reverse=True)[:5]
+    top10_avg = sorted([(uid, sum(avgs) / len(avgs)) for uid, avgs in global_avgs.items()], key=lambda x: x[1], reverse=True)[:10]
     top5_streak = sorted(global_best_streaks.items(), key=lambda x: x[1], reverse=True)[:5]
     total = len(global_avgs)
 
-    uids_needed = list({uid for uid, _ in top5_avg} | {uid for uid, _ in top5_streak})
+    # Build top 5 servers by best streak from settings
+    all_settings, _ = load_all_settings()
+    server_streaks: List[Tuple[str, str, int]] = []
+    for gid, gsettings in all_settings.items():
+        streak_data = gsettings.get("server_streak", {})
+        best = int(streak_data.get("best", 0))
+        if best <= 0:
+            continue
+        guild_obj = client.get_guild(int(gid))
+        name = guild_obj.name if guild_obj else f"Server {gid}"
+        server_streaks.append((gid, name, best))
+    server_streaks.sort(key=lambda x: x[2], reverse=True)
+    top5_servers = server_streaks[:5]
+
+    uids_needed = list({uid for uid, _ in top10_avg} | {uid for uid, _ in top5_streak})
     names: Dict[str, str] = {}
     for uid in uids_needed:
         names[uid] = await _fetch_display_name(uid)
 
-    view = GlobalLeaderboardView(top5_avg, top5_streak, names, total)
-    await interaction.followup.send(embed=_global_scores_embed(top5_avg, names, total), view=view)
+    view = GlobalLeaderboardView(top10_avg, top5_streak, top5_servers, names, total)
+    await interaction.followup.send(embed=_global_scores_embed(top10_avg, names, total), view=view)
+
+
+# /miles — check your Miles balance
+@client.tree.command(name="miles", description="Check your MapTap Miles balance")
+async def miles_command(interaction: discord.Interaction):
+    uid = str(interaction.user.id)
+    balance = get_user_miles(uid)
+    embed = discord.Embed(title="✈️ Your MapTap Miles", color=0xF1C40F)
+    embed.add_field(
+        name="Balance",
+        value=f"**{balance} Mile{'s' if balance != 1 else ''}**",
+        inline=False,
+    )
+    embed.add_field(
+        name="How to earn",
+        value="Vote for MapTap Companion on top.gg using `/vote` to earn 1 Mile per vote.\n*Note: it may take up to 2 minutes after voting for your Miles to appear.*",
+        inline=False,
+    )
+    embed.add_field(
+        name="How to spend",
+        value="Use `/redeem` to spend **5 Miles** and restore a streak you lost yesterday.",
+        inline=False,
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+# /redeem — spend 5 Miles to restore yesterday's streak
+@client.tree.command(name="redeem", description="Spend 5 Miles to restore a streak lost yesterday")
+async def redeem_command(interaction: discord.Interaction):
+    if not interaction.guild_id:
+        await interaction.response.send_message("❌ Server only.", ephemeral=True)
+        return
+
+    guild_id = str(interaction.guild_id)
+    uid = str(interaction.user.id)
+    settings, _ = load_guild_settings(guild_id)
+    tz = get_guild_tz(settings)
+
+    miles_data, miles_sha = load_miles()
+    entry = miles_data.get(uid, _default_miles_entry())
+    balance = int(entry.get("miles", 0))
+
+    if balance < 5:
+        await interaction.response.send_message(
+            f"✈️ You only have **{balance} Mile{'s' if balance != 1 else ''}** — you need **5** to redeem a streak restore.\n"
+            f"Vote on top.gg with `/vote` to earn more!",
+            ephemeral=True,
+        )
+        return
+
+    _, guild_scores, _ = load_guild_scores(guild_id)
+    all_users, guild_users, users_sha = load_guild_users(guild_id)
+
+    today = datetime.now(tz).date()
+    yesterday = (today - timedelta(days=1)).isoformat()
+    today_str = today.isoformat()
+
+    # Check they played yesterday (i.e. had a streak that continued to yesterday)
+    # and have NOT already posted today (streak is currently broken)
+    played_yesterday = uid in guild_scores.get(yesterday, {})
+    played_today = uid in guild_scores.get(today_str, {})
+    current_streak = calculate_current_streak(guild_scores, uid, tz)
+
+    if not played_yesterday:
+        await interaction.response.send_message(
+            "❌ You didn't play yesterday, so there's no streak to restore!\n"
+            "Redeeming only works the day after you missed — you can't restore old streaks.",
+            ephemeral=True,
+        )
+        return
+
+    if current_streak > 0:
+        await interaction.response.send_message(
+            f"✅ Your streak is already active (**{current_streak} days**) — nothing to restore!",
+            ephemeral=True,
+        )
+        return
+
+    if played_today:
+        await interaction.response.send_message(
+            "❌ You've already posted today. If your streak shows as broken, make sure yesterday's score is recorded.",
+            ephemeral=True,
+        )
+        return
+
+    # All good — inject a placeholder score for today to bridge the gap
+    # We use score 0 with a special flag so it doesn't affect stats
+    guild_scores.setdefault(today_str, {})
+    guild_scores[today_str][uid] = {
+        "score": guild_scores[yesterday][uid].get("score", 0),
+        "updated_at": datetime.now(tz).isoformat(),
+        "streak_restored": True,
+    }
+
+    # Deduct 5 Miles
+    entry["miles"] = balance - 5
+    miles_data[uid] = entry
+    save_miles(miles_data, miles_sha, f"MapTap: redeem streak restore uid {uid}")
+
+    all_scores, _, scores_sha = load_guild_scores(guild_id)
+    save_guild_scores(guild_id, all_scores, guild_scores, scores_sha, f"MapTap: streak restore uid {uid}")
+
+    new_streak = calculate_current_streak(guild_scores, uid, tz)
+    remaining = balance - 5
+
+    await interaction.response.send_message(
+        f"✅ **Streak restored!** ✈️\n"
+        f"Your streak is back — **{new_streak} days** and counting.\n"
+        f"Miles spent: **5** | Remaining: **{remaining}**",
+        ephemeral=True,
+    )
 
 
 # /rescan
@@ -2352,9 +2637,18 @@ def _help_commands_embed(url: str) -> discord.Embed:
         value=(
             "`/mymaptap` — Your personal stats, streaks, PBs and rankings\n"
             "`/leaderboard` — Server leaderboards (this week / month / all-time)\n"
-            "`/global` — Global top 5 players across all servers\n"
+            "`/global` — Global top 10 players across all servers\n"
             "`/predict` — Predict someone's score today\n"
             "`/link` — Get the MapTap link privately"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="✈️ Miles",
+        value=(
+            "`/miles` — Check your Miles balance\n"
+            "`/vote` — Vote on top.gg to earn 1 Mile\n"
+            "`/redeem` — Spend 5 Miles to restore a streak lost yesterday"
         ),
         inline=False,
     )
@@ -2418,7 +2712,21 @@ def _help_info_embed(url: str) -> discord.Embed:
     )
     embed.add_field(
         name="🌐 Global leaderboard",
-        value="Players are ranked globally across all servers by average score and best streak. Use `/global` to see the top 5.",
+        value=(
+            "Players are ranked globally across all servers by average score and best streak. "
+            "Use `/global` to see the top 10 scores, top 5 streaks, and top 5 server streaks.\n\n"
+            "**Minimum 5 days played required to appear on the global leaderboard.**"
+        ),
+        inline=False,
+    )
+    embed.add_field(
+        name="✈️ Miles",
+        value=(
+            "Earn **Miles** by voting for MapTap Companion on top.gg with `/vote`. "
+            "Each vote earns you **1 Mile**. Collect **5 Miles** and use `/redeem` to restore a streak "
+            "you lost the day before — but only within 24 hours of losing it!\n\n"
+            "*It may take up to 2 minutes after voting for your Miles to be credited.*"
+        ),
         inline=False,
     )
     embed.set_footer(text=f"MapTap → {url}")
@@ -2446,9 +2754,17 @@ async def help_command(interaction: discord.Interaction):
     view = HelpView(MAPTAP_URL)
     await interaction.response.send_message(embed=_help_home_embed(MAPTAP_URL), view=view, ephemeral=True)
 
-# /vote — get the vote link
+# /vote — get the vote link and seed user into miles polling
 @client.tree.command(name="vote", description="Vote for MapTap Companion")
 async def vote_command(interaction: discord.Interaction):
+    uid = str(interaction.user.id)
+
+    # Seed user into miles_data so the poller knows to check them
+    miles_data, miles_sha = load_miles()
+    if uid not in miles_data:
+        miles_data[uid] = _default_miles_entry()
+        save_miles(miles_data, miles_sha, f"MapTap: register voter uid {uid}")
+
     embed = discord.Embed(
         title="🗳️ Vote for MapTap Companion",
         description=(
@@ -2457,7 +2773,7 @@ async def vote_command(interaction: discord.Interaction):
         ),
         color=0xF1C40F,
     )
-    embed.set_footer(text="Votes help more people discover the bot ✈️")
+    embed.set_footer(text="Votes help more people discover the bot ✈️ | Miles credited within 2 minutes of voting")
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -2485,6 +2801,50 @@ async def initserverstreaks(interaction: discord.Interaction):
         f"✅ Server streak initialiser complete.\n"
         f"Updated **{updated}** of **{total}** saved guilds.",
         ephemeral=True
+    )
+
+
+# /givemiles — manually adjust a user's Miles balance (tracking guild admins only)
+@client.tree.command(
+    name="givemiles",
+    description="Add or remove Miles from a user by their Discord ID (tracking guild admins only)",
+)
+@app_commands.guilds(DEV_GUILD)
+@app_commands.describe(
+    user_id="The Discord user ID to adjust Miles for",
+    amount="Amount of Miles to add (positive) or remove (negative)",
+    reason="Optional reason for the adjustment",
+)
+async def givemiles(interaction: discord.Interaction, user_id: str, amount: int, reason: str = "Manual adjustment"):
+    if not _is_tracking_guild_admin(interaction):
+        await interaction.response.send_message("❌ No permission.", ephemeral=True)
+        return
+
+    if not user_id.strip().isdigit():
+        await interaction.response.send_message("❌ Invalid user ID — must be a numeric Discord user ID.", ephemeral=True)
+        return
+
+    if amount == 0:
+        await interaction.response.send_message("❌ Amount can't be zero.", ephemeral=True)
+        return
+
+    uid = user_id.strip()
+    miles_data, miles_sha = load_miles()
+    entry = miles_data.get(uid, _default_miles_entry())
+    old_balance = int(entry.get("miles", 0))
+    new_balance = max(0, old_balance + amount)
+    entry["miles"] = new_balance
+    miles_data[uid] = entry
+    save_miles(miles_data, miles_sha, f"MapTap: admin miles adjustment uid {uid} by {amount}")
+
+    action = f"+{amount}" if amount > 0 else str(amount)
+    await interaction.response.send_message(
+        f"✅ **Miles adjusted**\n"
+        f"User: `{uid}`\n"
+        f"Change: **{action} Miles**\n"
+        f"Old balance: **{old_balance}** → New balance: **{new_balance}**\n"
+        f"Reason: *{reason}*",
+        ephemeral=True,
     )
 
 
