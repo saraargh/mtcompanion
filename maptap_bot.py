@@ -62,11 +62,7 @@ TOPGG_TOKEN = os.getenv("TOPGG_TOKEN")
 SCORE_REGEX = re.compile(r"Final\s*score:\s*(\d+)", re.IGNORECASE)
 ROUND_ZERO_REGEX = re.compile(r"(^|\s)0(?!\d)")
 MAPTAP_HINT_REGEX = re.compile(r"\bmaptap\.gg\b", re.IGNORECASE)
-# Matches "May 5", "5 May", "May 5th", "5th May" etc.
-DATE_IN_CONTENT_REGEX = re.compile(
-    r"\b(?:(\d{1,2})(?:st|nd|rd|th)?\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)|(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?)\b",
-    re.IGNORECASE,
-)
+
 
 # =====================================================
 # DEFAULT SETTINGS (per guild)
@@ -625,38 +621,6 @@ def has_zero_round(text: str) -> bool:
             return True
     return False
 
-def parse_date_from_content(text: str, msg_time: datetime) -> Optional[str]:
-    """
-    Try to find a date like 'May 5' or '5 May' in the message text.
-    Uses the Discord message's year. Returns YYYY-MM-DD or None.
-    """
-    MONTH_MAP = {
-        "jan": 1, "january": 1, "feb": 2, "february": 2,
-        "mar": 3, "march": 3, "apr": 4, "april": 4,
-        "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7,
-        "aug": 8, "august": 8, "sep": 9, "september": 9,
-        "oct": 10, "october": 10, "nov": 11, "november": 11,
-        "dec": 12, "december": 12,
-    }
-    m = DATE_IN_CONTENT_REGEX.search(text)
-    if not m:
-        return None
-    try:
-        if m.group(1) and m.group(2):
-            day = int(m.group(1))
-            month = MONTH_MAP[m.group(2).lower()[:3]]
-        else:
-            month = MONTH_MAP[m.group(3).lower()[:3]]
-            day = int(m.group(4))
-        year = msg_time.year
-        parsed = date(year, month, day)
-        # Sanity check: don't allow future dates or dates more than 7 days old
-        today = msg_time.date()
-        if parsed > today or (today - parsed).days > 7:
-            return None
-        return parsed.isoformat()
-    except Exception:
-        return None
 
 # ==============
 # update topgg
@@ -1210,10 +1174,7 @@ async def on_message(message: discord.Message):
 
     tz = get_guild_tz(settings)
     msg_time = message.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(tz)
-
-    # Try to parse date from message content first (e.g. "May 5", "5 May")
-    parsed_dkey = parse_date_from_content(message.content or "", msg_time)
-    dkey = parsed_dkey if parsed_dkey else today_key(msg_time, tz)
+    dkey = today_key(msg_time, tz)
     uid = str(message.author.id)
 
     all_scores, guild_scores, scores_sha = load_guild_scores(guild_id)
