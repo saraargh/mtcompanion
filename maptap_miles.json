@@ -1,12 +1,12 @@
 {
   "1238834298338152498": {
-    "miles": 0,
-    "voted_at": null,
-    "last_polled_vote": null
+    "miles": 1,
+    "voted_at": "2026-05-10T14:28:57.127073+00:00",
+    "last_polled_vote": "2026-05-10T14:28:57.127073+00:00"
   },
   "217015976300904465": {
     "miles": 5,
     "voted_at": null,
-    "last_polled_vote": null
+    "last_polled_vote": "2026-05-10T14:28:57.127073+00:00"
   }
 }
