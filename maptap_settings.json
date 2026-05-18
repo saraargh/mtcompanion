@@ -799,12 +799,12 @@
     },
     "alerts": {
       "daily_post_enabled": true,
-      "daily_scoreboard_enabled": true,
+      "daily_scoreboard_enabled": false,
       "weekly_roundup_enabled": true,
-      "rivalry_enabled": true,
+      "rivalry_enabled": false,
       "monthly_leaderboard_enabled": true,
-      "zero_score_roasts_enabled": true,
-      "pb_messages_enabled": true,
+      "zero_score_roasts_enabled": false,
+      "pb_messages_enabled": false,
       "perfect_score_enabled": true
     },
     "emojis": {
