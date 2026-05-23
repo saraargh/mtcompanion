@@ -988,9 +988,9 @@
     ],
     "timezone": "America/New_York",
     "server_streak": {
-      "current": 10,
-      "best": 10,
-      "last_score_date": "2026-05-22"
+      "current": 11,
+      "best": 11,
+      "last_score_date": "2026-05-23"
     },
     "alerts": {
       "daily_post_enabled": true,
