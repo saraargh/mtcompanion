@@ -962,16 +962,16 @@
       }
     },
     "217080009095905281": {
-      "total_points": 715,
-      "days_played": 1,
-      "best_streak": 1,
+      "total_points": 1418,
+      "days_played": 2,
+      "best_streak": 2,
       "personal_best": {
         "score": 715,
         "date": "2026-05-29"
       },
       "personal_low": {
-        "score": 715,
-        "date": "2026-05-29"
+        "score": 703,
+        "date": "2026-05-30"
       }
     }
   },
