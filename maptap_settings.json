@@ -778,11 +778,11 @@
       "date_range": 0
     },
     "last_run": {
-      "daily_post": "2026-05-31",
+      "daily_post": "2026-06-01",
       "daily_scoreboard": "2026-05-31",
       "weekly_roundup": "2026-05-31",
       "rivalry": "2026-05-31",
-      "monthly_leaderboard": null
+      "monthly_leaderboard": "2026-06-01"
     }
   },
   "264137661340581888": {
@@ -827,7 +827,7 @@
       "date_range": 0
     },
     "last_run": {
-      "daily_post": "2026-05-31",
+      "daily_post": "2026-06-01",
       "daily_scoreboard": "2026-05-18",
       "weekly_roundup": "2026-05-31",
       "rivalry": "2026-05-18",
