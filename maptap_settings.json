@@ -1232,14 +1232,14 @@
       "last_score_date": "2026-06-06"
     },
     "alerts": {
-      "daily_post_enabled": false,
-      "daily_scoreboard_enabled": false,
-      "weekly_roundup_enabled": false,
-      "rivalry_enabled": false,
-      "monthly_leaderboard_enabled": false,
-      "zero_score_roasts_enabled": true,
-      "pb_messages_enabled": false,
-      "perfect_score_enabled": false
+      "daily_post_enabled": true,
+      "daily_scoreboard_enabled": true,
+      "weekly_roundup_enabled": true,
+      "rivalry_enabled": true,
+      "monthly_leaderboard_enabled": true,
+      "zero_score_roasts_enabled": false,
+      "pb_messages_enabled": true,
+      "perfect_score_enabled": true
     },
     "emojis": {
       "recorded": "\ud83c\udf0f",
