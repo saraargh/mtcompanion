@@ -1368,7 +1368,7 @@
     "enabled": true,
     "channel_id": 1512852372785991680,
     "admin_role_ids": [],
-    "timezone": "Europe/London",
+    "timezone": "America/Chicago",
     "server_streak": {
       "current": 0,
       "best": 0,
