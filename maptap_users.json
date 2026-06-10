@@ -2130,5 +2130,110 @@
       }
     }
   },
-  "1013863951081152632": {}
+  "1013863951081152632": {
+    "283053478635372544": {
+      "total_points": 2722,
+      "days_played": 3,
+      "best_streak": 0,
+      "personal_best": {
+        "score": 945,
+        "date": "2026-06-08"
+      },
+      "personal_low": {
+        "score": 884,
+        "date": "2026-06-06"
+      }
+    },
+    "753322851834134630": {
+      "total_points": 2780,
+      "days_played": 3,
+      "best_streak": 1,
+      "personal_best": {
+        "score": 930,
+        "date": "2026-06-08"
+      },
+      "personal_low": {
+        "score": 923,
+        "date": "2026-06-06"
+      }
+    },
+    "985742730812604446": {
+      "total_points": 1935,
+      "days_played": 2,
+      "best_streak": 0,
+      "personal_best": {
+        "score": 968,
+        "date": "2026-06-06"
+      },
+      "personal_low": {
+        "score": 967,
+        "date": "2026-06-08"
+      }
+    },
+    "248931382472998913": {
+      "total_points": 1888,
+      "days_played": 2,
+      "best_streak": 0,
+      "personal_best": {
+        "score": 946,
+        "date": "2026-06-09"
+      },
+      "personal_low": {
+        "score": 942,
+        "date": "2026-06-08"
+      }
+    },
+    "696142025782984724": {
+      "total_points": 1872,
+      "days_played": 2,
+      "best_streak": 0,
+      "personal_best": {
+        "score": 952,
+        "date": "2026-06-09"
+      },
+      "personal_low": {
+        "score": 920,
+        "date": "2026-06-08"
+      }
+    },
+    "168439183638003712": {
+      "total_points": 1909,
+      "days_played": 2,
+      "best_streak": 0,
+      "personal_best": {
+        "score": 962,
+        "date": "2026-06-08"
+      },
+      "personal_low": {
+        "score": 947,
+        "date": "2026-06-09"
+      }
+    },
+    "219543979446894592": {
+      "total_points": 938,
+      "days_played": 1,
+      "best_streak": 0,
+      "personal_best": {
+        "score": 938,
+        "date": "2026-06-08"
+      },
+      "personal_low": {
+        "score": 938,
+        "date": "2026-06-08"
+      }
+    },
+    "511006909353164805": {
+      "total_points": 794,
+      "days_played": 1,
+      "best_streak": 0,
+      "personal_best": {
+        "score": 794,
+        "date": "2026-06-09"
+      },
+      "personal_low": {
+        "score": 794,
+        "date": "2026-06-09"
+      }
+    }
+  }
 }
