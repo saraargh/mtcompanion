@@ -779,7 +779,7 @@
     },
     "last_run": {
       "daily_post": "2026-06-07",
-      "daily_scoreboard": "2026-06-04",
+      "daily_scoreboard": "2026-06-12",
       "weekly_roundup": "2026-05-31",
       "rivalry": "2026-06-12",
       "monthly_leaderboard": "2026-06-01"
@@ -879,7 +879,7 @@
       "daily_post": "2026-06-12",
       "daily_scoreboard": "2026-06-03",
       "weekly_roundup": "2026-05-31",
-      "rivalry": "2026-06-04",
+      "rivalry": "2026-06-12",
       "monthly_leaderboard": "2026-06-01"
     }
   },
@@ -1407,7 +1407,7 @@
       "daily_post": "2026-06-12",
       "daily_scoreboard": "2026-06-11",
       "weekly_roundup": null,
-      "rivalry": null,
+      "rivalry": "2026-06-12",
       "monthly_leaderboard": null
     }
   },
