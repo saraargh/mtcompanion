@@ -2380,5 +2380,98 @@
         "date": "2026-06-15"
       }
     }
+  },
+  "1370420547757801502": {
+    "424975938741075979": {
+      "total_points": 1790,
+      "days_played": 2,
+      "best_streak": 2,
+      "personal_best": {
+        "score": 958,
+        "date": "2026-06-15"
+      },
+      "personal_low": {
+        "score": 832,
+        "date": "2026-06-14"
+      }
+    },
+    "719630031995011143": {
+      "total_points": 1781,
+      "days_played": 2,
+      "best_streak": 2,
+      "personal_best": {
+        "score": 913,
+        "date": "2026-06-15"
+      },
+      "personal_low": {
+        "score": 868,
+        "date": "2026-06-14"
+      }
+    },
+    "1211453590716153926": {
+      "total_points": 898,
+      "days_played": 1,
+      "best_streak": 0,
+      "personal_best": {
+        "score": 898,
+        "date": "2026-06-14"
+      },
+      "personal_low": {
+        "score": 898,
+        "date": "2026-06-14"
+      }
+    },
+    "706969605750390805": {
+      "total_points": 838,
+      "days_played": 1,
+      "best_streak": 0,
+      "personal_best": {
+        "score": 838,
+        "date": "2026-06-14"
+      },
+      "personal_low": {
+        "score": 838,
+        "date": "2026-06-14"
+      }
+    },
+    "456984471019847690": {
+      "total_points": 1824,
+      "days_played": 1,
+      "best_streak": 0,
+      "personal_best": {
+        "score": 979,
+        "date": "2026-06-14"
+      },
+      "personal_low": {
+        "score": 845,
+        "date": "2026-06-14"
+      }
+    },
+    "179728447894061056": {
+      "total_points": 1825,
+      "days_played": 2,
+      "best_streak": 2,
+      "personal_best": {
+        "score": 926,
+        "date": "2026-06-15"
+      },
+      "personal_low": {
+        "score": 899,
+        "date": "2026-06-14"
+      }
+    },
+    "294878017157726219": {
+      "total_points": 958,
+      "days_played": 1,
+      "best_streak": 1,
+      "personal_best": {
+        "score": 958,
+        "date": "2026-06-15"
+      },
+      "personal_low": {
+        "score": 958,
+        "date": "2026-06-15"
+      }
+    }
   }
 }
