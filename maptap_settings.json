@@ -1615,6 +1615,7 @@
     "enabled": true,
     "channel_id": 974075403587186708,
     "admin_role_ids": [
+      974068968258146304,
       506626702911471616
     ],
     "timezone": "America/Chicago",
