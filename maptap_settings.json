@@ -1474,10 +1474,10 @@
       "daily_post_enabled": true,
       "daily_scoreboard_enabled": true,
       "weekly_roundup_enabled": true,
-      "rivalry_enabled": false,
+      "rivalry_enabled": true,
       "monthly_leaderboard_enabled": true,
-      "zero_score_roasts_enabled": false,
-      "pb_messages_enabled": false,
+      "zero_score_roasts_enabled": true,
+      "pb_messages_enabled": true,
       "perfect_score_enabled": true
     },
     "emojis": {
