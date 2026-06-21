@@ -1612,7 +1612,7 @@
     }
   },
   "152269824872022017": {
-    "enabled": false,
+    "enabled": true,
     "channel_id": 974075403587186708,
     "admin_role_ids": [
       506626702911471616
