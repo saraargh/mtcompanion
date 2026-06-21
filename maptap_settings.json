@@ -502,9 +502,9 @@
     "admin_role_ids": [],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 8,
+      "current": 9,
       "best": 28,
-      "last_score_date": "2026-06-20"
+      "last_score_date": "2026-06-21"
     },
     "alerts": {
       "daily_post_enabled": true,
