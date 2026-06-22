@@ -1619,9 +1619,9 @@
     ],
     "timezone": "US/Central",
     "server_streak": {
-      "current": 5,
-      "best": 5,
-      "last_score_date": "2026-06-21"
+      "current": 6,
+      "best": 6,
+      "last_score_date": "2026-06-22"
     },
     "alerts": {
       "daily_post_enabled": true,
