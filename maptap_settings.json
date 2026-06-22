@@ -1424,7 +1424,7 @@
       "last_score_date": "2026-06-22"
     },
     "alerts": {
-      "daily_post_enabled": true,
+      "daily_post_enabled": false,
       "daily_scoreboard_enabled": true,
       "weekly_roundup_enabled": false,
       "rivalry_enabled": false,
