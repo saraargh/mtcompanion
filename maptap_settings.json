@@ -1431,7 +1431,7 @@
       "monthly_leaderboard_enabled": true,
       "zero_score_roasts_enabled": false,
       "pb_messages_enabled": true,
-      "perfect_score_enabled": false
+      "perfect_score_enabled": true
     },
     "emojis": {
       "recorded": "\ud83c\udf0f",
