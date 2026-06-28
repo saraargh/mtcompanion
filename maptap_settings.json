@@ -1815,9 +1815,9 @@
     ],
     "timezone": "America/Chicago",
     "server_streak": {
-      "current": 0,
-      "best": 0,
-      "last_score_date": null
+      "current": 1,
+      "best": 1,
+      "last_score_date": "2026-06-27"
     },
     "alerts": {
       "daily_post_enabled": true,
