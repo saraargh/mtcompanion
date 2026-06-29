@@ -1370,9 +1370,9 @@
     "admin_role_ids": [],
     "timezone": "America/Chicago",
     "server_streak": {
-      "current": 20,
-      "best": 20,
-      "last_score_date": "2026-06-28"
+      "current": 21,
+      "best": 21,
+      "last_score_date": "2026-06-29"
     },
     "alerts": {
       "daily_post_enabled": true,
