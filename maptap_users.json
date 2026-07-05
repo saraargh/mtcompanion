@@ -1985,7 +1985,7 @@
     "328261081715703808": {
       "total_points": 50188,
       "days_played": 61,
-      "best_streak": 15,
+      "best_streak": 0,
       "personal_best": {
         "score": 975,
         "date": "2026-06-02"
@@ -1998,7 +1998,7 @@
     "224596697580437504": {
       "total_points": 72270,
       "days_played": 77,
-      "best_streak": 58,
+      "best_streak": 2,
       "personal_best": {
         "score": 994,
         "date": "2026-05-28"
@@ -2009,9 +2009,9 @@
       }
     },
     "712408571979235409": {
-      "total_points": 62502,
-      "days_played": 77,
-      "best_streak": 77,
+      "total_points": 63273,
+      "days_played": 78,
+      "best_streak": 78,
       "personal_best": {
         "score": 977,
         "date": "2026-06-02"
@@ -2024,7 +2024,7 @@
     "712776498754355382": {
       "total_points": 39957,
       "days_played": 48,
-      "best_streak": 5,
+      "best_streak": 0,
       "personal_best": {
         "score": 969,
         "date": "2026-06-06"
@@ -2035,9 +2035,9 @@
       }
     },
     "157208611666264064": {
-      "total_points": 42931,
-      "days_played": 55,
-      "best_streak": 15,
+      "total_points": 43683,
+      "days_played": 56,
+      "best_streak": 0,
       "personal_best": {
         "score": 949,
         "date": "2026-06-10"
@@ -2048,9 +2048,9 @@
       }
     },
     "157208862963924992": {
-      "total_points": 40875,
-      "days_played": 45,
-      "best_streak": 29,
+      "total_points": 41840,
+      "days_played": 46,
+      "best_streak": 0,
       "personal_best": {
         "score": 978,
         "date": "2026-06-15"
@@ -2076,7 +2076,7 @@
     "207190933224161280": {
       "total_points": 19477,
       "days_played": 27,
-      "best_streak": 20,
+      "best_streak": 0,
       "personal_best": {
         "score": 907,
         "date": "2026-06-06"
@@ -2089,7 +2089,7 @@
     "189096878946779138": {
       "total_points": 14102,
       "days_played": 15,
-      "best_streak": 15,
+      "best_streak": 0,
       "personal_best": {
         "score": 967,
         "date": "2026-06-21"
