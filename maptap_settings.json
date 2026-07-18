@@ -1523,9 +1523,9 @@
     ],
     "timezone": "Europe/Amsterdam",
     "server_streak": {
-      "current": 7,
+      "current": 8,
       "best": 22,
-      "last_score_date": "2026-07-17"
+      "last_score_date": "2026-07-18"
     },
     "alerts": {
       "daily_post_enabled": false,
