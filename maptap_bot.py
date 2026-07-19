@@ -11,6 +11,8 @@ import re
 import base64
 import random
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import calendar
 from datetime import datetime, timedelta, date
 from zoneinfo import ZoneInfo, available_timezones, ZoneInfoNotFoundError
@@ -126,6 +128,33 @@ HEADERS = {
     "Accept": "application/vnd.github.v3+json",
 }
 
+# -----------------------------------------------------
+# Resilient HTTP session
+# -----------------------------------------------------
+# wispbyte's network path to GitHub / top.gg occasionally has slow/failed
+# TLS handshakes or read timeouts. A plain `requests.get/put` has no retry
+# logic, so a single hiccup turns into an uncaught exception that either
+# aborts on_message part-way (losing reactions/saves) or kills a tasks.loop
+# iteration. This session automatically retries transient network errors
+# and 5xx/429 responses with a short backoff before giving up.
+_retry_strategy = Retry(
+    total=3,
+    connect=3,
+    read=3,
+    backoff_factor=1.5,           # 0s, 1.5s, 3s, 4.5s between attempts
+    status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=["GET", "PUT", "POST"],
+    raise_on_status=False,
+)
+SESSION = requests.Session()
+_adapter = HTTPAdapter(max_retries=_retry_strategy)
+SESSION.mount("https://", _adapter)
+SESSION.mount("http://", _adapter)
+
+# (connect_timeout, read_timeout) — give the read a bit more room than a
+# flat 20s, since GitHub occasionally takes longer than 20s under load.
+HTTP_TIMEOUT = (10, 25)
+
 # =====================================================
 # KEEP ALIVE (Render)
 # =====================================================
@@ -147,7 +176,11 @@ def _gh_url(path: str) -> str:
 
 def github_load_json(path: str, default: Any) -> Tuple[Any, Optional[str]]:
     url = _gh_url(path)
-    r = requests.get(url, headers=HEADERS, timeout=20)
+    try:
+        r = SESSION.get(url, headers=HEADERS, timeout=HTTP_TIMEOUT)
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ GitHub load failed for {path} after retries: {e}")
+        raise
 
     if r.status_code == 404:
         return default, None
@@ -170,7 +203,24 @@ def github_save_json(path: str, data: Any, sha: Optional[str], message: str) -> 
     if sha:
         body["sha"] = sha
 
-    r = requests.put(url, headers=HEADERS, json=body, timeout=20)
+    try:
+        r = SESSION.put(url, headers=HEADERS, json=body, timeout=HTTP_TIMEOUT)
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ GitHub save failed for {path} after retries: {e}")
+        raise
+
+    if r.status_code == 409 and sha:
+        # Someone else updated the file between our load and save (stale
+        # sha) — a normal race under concurrent saves, not a network
+        # failure. Re-fetch the current sha and retry once.
+        try:
+            _latest, latest_sha = github_load_json(path, None)
+            if latest_sha:
+                body["sha"] = latest_sha
+                r = SESSION.put(url, headers=HEADERS, json=body, timeout=HTTP_TIMEOUT)
+        except requests.exceptions.RequestException as e:
+            print(f"⚠️ GitHub save retry-after-409 failed for {path}: {e}")
+
     r.raise_for_status()
     new_sha = r.json().get("content", {}).get("sha")
     return new_sha or sha or ""
@@ -631,7 +681,7 @@ def update_topgg():
         return
 
     try:
-        requests.post(
+        SESSION.post(
             f"https://top.gg/api/bots/{client.user.id}/stats",
             headers={
                 "Authorization": TOPGG_TOKEN,
@@ -640,7 +690,7 @@ def update_topgg():
             json={
                 "server_count": len(client.guilds)
             },
-            timeout=10,
+            timeout=HTTP_TIMEOUT,
         )
         print(f"📊 Top.gg updated: {len(client.guilds)} servers")
     except Exception as e:
@@ -685,7 +735,12 @@ class MapTapBot(discord.Client):
         if not TOPGG_TOKEN or not client.user:
             return
 
-        miles_data, miles_sha = load_miles()
+        try:
+            miles_data, miles_sha = load_miles()
+        except requests.exceptions.RequestException as e:
+            print(f"⚠️ poll_topgg_votes: could not load miles data, skipping this cycle: {e}")
+            return
+
         changed = False
         now = datetime.now(ZoneInfo("UTC"))
 
@@ -701,11 +756,11 @@ class MapTapBot(discord.Client):
                     pass
 
             try:
-                r = requests.get(
+                r = SESSION.get(
                     f"https://top.gg/api/bots/{client.user.id}/check",
                     headers={"Authorization": TOPGG_TOKEN},
                     params={"userId": uid},
-                    timeout=10,
+                    timeout=HTTP_TIMEOUT,
                 )
                 if r.status_code != 200:
                     continue
@@ -730,7 +785,10 @@ class MapTapBot(discord.Client):
                 continue
 
         if changed:
-            save_miles(miles_data, miles_sha, "MapTap: credit miles for votes")
+            try:
+                save_miles(miles_data, miles_sha, "MapTap: credit miles for votes")
+            except requests.exceptions.RequestException as e:
+                print(f"⚠️ poll_topgg_votes: failed to save miles data: {e}")
 
         
     @tasks.loop(minutes=1)
@@ -739,6 +797,14 @@ class MapTapBot(discord.Client):
         Runs every minute. Loads all guild settings once, iterates over each guild,
         checks whether any scheduled action is due for that guild's local time,
         fires if so, then saves the updated last_run block back in one write.
+
+        NOTE: we treat a scheduled time as "due" once now_hm >= scheduled_hm
+        (rather than requiring an exact match). The 1-minute loop can drift or
+        occasionally skip a minute — e.g. while this tick is blocked on a slow
+        GitHub call — and an exact-equality check would then miss that day's
+        window entirely until the same time tomorrow. A >= check instead fires
+        on the very next tick after the target time, and last_run still
+        guarantees it only fires once per day.
         """
         all_settings, sha = load_all_settings()
         fired_any = False
@@ -756,24 +822,20 @@ class MapTapBot(discord.Client):
             last_run = settings.get("last_run", {})
             alerts = settings.get("alerts", {})
 
+            def is_due(field: str) -> bool:
+                scheduled = times.get(field)
+                return bool(scheduled) and now_hm >= scheduled and last_run.get(field) != today
+
             guild_fired = False
 
             # Daily Post
-            if (
-                alerts.get("daily_post_enabled", True)
-                and now_hm == times.get("daily_post")
-                and last_run.get("daily_post") != today
-            ):
+            if alerts.get("daily_post_enabled", True) and is_due("daily_post"):
                 await do_daily_post(guild_id, settings)
                 all_settings[guild_id]["last_run"]["daily_post"] = today
                 guild_fired = True
 
             # Daily Scoreboard
-            if (
-                alerts.get("daily_scoreboard_enabled", True)
-                and now_hm == times.get("daily_scoreboard")
-                and last_run.get("daily_scoreboard") != today
-            ):
+            if alerts.get("daily_scoreboard_enabled", True) and is_due("daily_scoreboard"):
                 await do_daily_scoreboard(guild_id, settings)
                 all_settings[guild_id]["last_run"]["daily_scoreboard"] = today
                 guild_fired = True
@@ -782,19 +844,14 @@ class MapTapBot(discord.Client):
             if (
                 alerts.get("weekly_roundup_enabled", True)
                 and now.weekday() == 6
-                and now_hm == times.get("weekly_roundup")
-                and last_run.get("weekly_roundup") != today
+                and is_due("weekly_roundup")
             ):
                 await do_weekly_roundup(guild_id, settings)
                 all_settings[guild_id]["last_run"]["weekly_roundup"] = today
                 guild_fired = True
 
             # Rivalry Alert
-            if (
-                alerts.get("rivalry_enabled", True)
-                and now_hm == times.get("rivalry")
-                and last_run.get("rivalry") != today
-            ):
+            if alerts.get("rivalry_enabled", True) and is_due("rivalry"):
                 try:
                     await do_rivalry_alert(guild_id, settings)
                 finally:
@@ -805,8 +862,7 @@ class MapTapBot(discord.Client):
             if (
                 alerts.get("monthly_leaderboard_enabled", True)
                 and now.day == 1
-                and now_hm == times.get("monthly_leaderboard")
-                and last_run.get("monthly_leaderboard") != today
+                and is_due("monthly_leaderboard")
             ):
                 await do_monthly_leaderboard(guild_id, settings)
                 all_settings[guild_id]["last_run"]["monthly_leaderboard"] = today
@@ -1279,9 +1335,16 @@ async def on_message(message: discord.Message):
     except Exception:
         guild_users[uid]["best_streak"] = cur
 
-    save_guild_scores(guild_id, all_scores, guild_scores, scores_sha, "MapTap score update")
-    save_guild_users(guild_id, all_users, guild_users, users_sha, "MapTap user update")
-    save_guild_settings(guild_id, settings, "MapTap: update server streak")
+    try:
+        save_guild_scores(guild_id, all_scores, guild_scores, scores_sha, "MapTap score update")
+        save_guild_users(guild_id, all_users, guild_users, users_sha, "MapTap user update")
+        save_guild_settings(guild_id, settings, "MapTap: update server streak")
+    except requests.exceptions.RequestException as e:
+        # GitHub had a hiccup (slow handshake / read timeout) even after our
+        # automatic retries. Don't let that abort the rest of this handler —
+        # the user still gets their reactions, and we just log the failure
+        # instead of losing this score update silently.
+        print(f"⚠️ on_message: failed to save data for guild {guild_id} after retries: {e}")
     await react_safe(message, settings["emojis"]["recorded"], "✅")
     if score >= 900:
         await react_safe(message, "🔥", "🔥")
