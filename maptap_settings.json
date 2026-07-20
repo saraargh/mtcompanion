@@ -8,8 +8,8 @@
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 2,
-      "best": 31,
+      "current": 0,
+      "best": 5,
       "last_score_date": "2026-05-27"
     },
     "alerts": {
@@ -114,7 +114,7 @@
     "timezone": "Europe/London",
     "server_streak": {
       "current": 0,
-      "best": 6,
+      "best": 3,
       "last_score_date": "2026-04-09"
     },
     "alerts": {
@@ -211,7 +211,7 @@
     ],
     "timezone": "PST8PDT",
     "server_streak": {
-      "current": 3,
+      "current": 0,
       "best": 3,
       "last_score_date": "2026-04-15"
     },
@@ -261,7 +261,7 @@
     ],
     "timezone": "Europe/Berlin",
     "server_streak": {
-      "current": 1,
+      "current": 0,
       "best": 1,
       "last_score_date": "2026-04-14"
     },
@@ -310,8 +310,8 @@
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 2,
-      "best": 23,
+      "current": 0,
+      "best": 30,
       "last_score_date": "2026-06-12"
     },
     "alerts": {
@@ -455,7 +455,7 @@
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 2,
+      "current": 0,
       "best": 2,
       "last_score_date": "2026-04-21"
     },
@@ -552,7 +552,7 @@
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 1,
+      "current": 0,
       "best": 23,
       "last_score_date": "2026-07-18"
     },
@@ -695,8 +695,8 @@
     ],
     "timezone": "America/New_York",
     "server_streak": {
-      "current": 7,
-      "best": 64,
+      "current": 0,
+      "best": 61,
       "last_score_date": "2026-07-18"
     },
     "alerts": {
@@ -744,9 +744,9 @@
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 10,
-      "best": 61,
-      "last_score_date": "2026-07-19"
+      "current": 77,
+      "best": 77,
+      "last_score_date": "2026-07-20"
     },
     "alerts": {
       "daily_post_enabled": true,
@@ -793,7 +793,7 @@
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 4,
+      "current": 0,
       "best": 58,
       "last_score_date": "2026-07-18"
     },
@@ -939,7 +939,7 @@
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 1,
+      "current": 0,
       "best": 12,
       "last_score_date": "2026-06-10"
     },
@@ -1037,7 +1037,7 @@
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 14,
+      "current": 0,
       "best": 14,
       "last_score_date": "2026-05-27"
     },
@@ -1084,7 +1084,7 @@
     "admin_role_ids": [],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 1,
+      "current": 0,
       "best": 1,
       "last_score_date": "2026-06-01"
     },
@@ -1227,8 +1227,8 @@
     "admin_role_ids": [],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 31,
-      "best": 31,
+      "current": 0,
+      "best": 81,
       "last_score_date": "2026-07-06"
     },
     "alerts": {
@@ -1276,7 +1276,7 @@
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 1,
+      "current": 0,
       "best": 4,
       "last_score_date": "2026-06-11"
     },
@@ -1323,7 +1323,7 @@
     "admin_role_ids": [],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 1,
+      "current": 0,
       "best": 6,
       "last_score_date": "2026-06-16"
     },
@@ -1371,7 +1371,7 @@
     "timezone": "America/Chicago",
     "server_streak": {
       "current": 9,
-      "best": 28,
+      "best": 29,
       "last_score_date": "2026-07-19"
     },
     "alerts": {
@@ -1467,7 +1467,7 @@
     "timezone": "America/New_York",
     "server_streak": {
       "current": 10,
-      "best": 22,
+      "best": 23,
       "last_score_date": "2026-07-19"
     },
     "alerts": {
@@ -1523,9 +1523,9 @@
     ],
     "timezone": "Europe/Amsterdam",
     "server_streak": {
-      "current": 8,
+      "current": 9,
       "best": 22,
-      "last_score_date": "2026-07-18"
+      "last_score_date": "2026-07-19"
     },
     "alerts": {
       "daily_post_enabled": false,
@@ -1570,7 +1570,7 @@
     "admin_role_ids": [],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 1,
+      "current": 0,
       "best": 1,
       "last_score_date": "2026-06-16"
     },
@@ -1619,7 +1619,7 @@
     ],
     "timezone": "US/Central",
     "server_streak": {
-      "current": 20,
+      "current": 0,
       "best": 20,
       "last_score_date": "2026-07-06"
     },
@@ -1668,7 +1668,7 @@
     ],
     "timezone": "America/Chicago",
     "server_streak": {
-      "current": 1,
+      "current": 0,
       "best": 1,
       "last_score_date": "2026-06-18"
     },
@@ -1766,7 +1766,7 @@
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 1,
+      "current": 0,
       "best": 1,
       "last_score_date": "2026-06-23"
     },
@@ -1815,7 +1815,7 @@
     ],
     "timezone": "America/Chicago",
     "server_streak": {
-      "current": 1,
+      "current": 0,
       "best": 10,
       "last_score_date": "2026-07-18"
     },
@@ -1864,7 +1864,7 @@
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 1,
+      "current": 0,
       "best": 1,
       "last_score_date": "2026-07-06"
     },
