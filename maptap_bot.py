@@ -488,7 +488,13 @@ def calculate_current_streak(guild_scores: Dict[str, Any], user_id: str, tz: Zon
         return 0
 
     played_set = set(played)
-    d = datetime.now(tz).date()
+    today = datetime.now(tz).date()
+    yesterday = today - timedelta(days=1)
+
+    if today not in played_set and yesterday not in played_set:
+        return 0
+
+    d = today if today in played_set else yesterday
     streak = 0
     while d in played_set:
         streak += 1
