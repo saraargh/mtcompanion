@@ -805,8 +805,25 @@ class MapTapBot(discord.Client):
         window entirely until the same time tomorrow. A >= check instead fires
         on the very next tick after the target time, and last_run still
         guarantees it only fires once per day.
+
+        IMPORTANT: this whole method must never let an unhandled exception
+        escape. discord.ext.tasks does NOT auto-restart a loop after an
+        unhandled exception — it just stops permanently until something
+        explicitly restarts it (see scheduler_tick_error below, which is a
+        last-resort safety net). So every fallible step in here — the load,
+        each individual scheduled action, and the final save — is wrapped
+        so a single bad guild or a single GitHub hiccup can't silently kill
+        every future daily post / scoreboard / etc.
         """
-        all_settings, sha = load_all_settings()
+        try:
+            all_settings, sha = load_all_settings()
+        except requests.exceptions.RequestException as e:
+            print(f"⚠️ scheduler_tick: could not load settings, skipping this cycle: {e}")
+            return
+        except Exception as e:
+            print(f"⚠️ scheduler_tick: unexpected error loading settings, skipping this cycle: {e}")
+            return
+
         fired_any = False
 
         for guild_id, settings in all_settings.items():
@@ -830,15 +847,23 @@ class MapTapBot(discord.Client):
 
             # Daily Post
             if alerts.get("daily_post_enabled", True) and is_due("daily_post"):
-                await do_daily_post(guild_id, settings)
-                all_settings[guild_id]["last_run"]["daily_post"] = today
-                guild_fired = True
+                try:
+                    await do_daily_post(guild_id, settings)
+                except Exception as e:
+                    print(f"⚠️ daily_post failed for guild {guild_id}: {e}")
+                finally:
+                    all_settings[guild_id]["last_run"]["daily_post"] = today
+                    guild_fired = True
 
             # Daily Scoreboard
             if alerts.get("daily_scoreboard_enabled", True) and is_due("daily_scoreboard"):
-                await do_daily_scoreboard(guild_id, settings)
-                all_settings[guild_id]["last_run"]["daily_scoreboard"] = today
-                guild_fired = True
+                try:
+                    await do_daily_scoreboard(guild_id, settings)
+                except Exception as e:
+                    print(f"⚠️ daily_scoreboard failed for guild {guild_id}: {e}")
+                finally:
+                    all_settings[guild_id]["last_run"]["daily_scoreboard"] = today
+                    guild_fired = True
 
             # Weekly Roundup (Sundays in the guild's local time)
             if (
@@ -846,14 +871,20 @@ class MapTapBot(discord.Client):
                 and now.weekday() == 6
                 and is_due("weekly_roundup")
             ):
-                await do_weekly_roundup(guild_id, settings)
-                all_settings[guild_id]["last_run"]["weekly_roundup"] = today
-                guild_fired = True
+                try:
+                    await do_weekly_roundup(guild_id, settings)
+                except Exception as e:
+                    print(f"⚠️ weekly_roundup failed for guild {guild_id}: {e}")
+                finally:
+                    all_settings[guild_id]["last_run"]["weekly_roundup"] = today
+                    guild_fired = True
 
             # Rivalry Alert
             if alerts.get("rivalry_enabled", True) and is_due("rivalry"):
                 try:
                     await do_rivalry_alert(guild_id, settings)
+                except Exception as e:
+                    print(f"⚠️ rivalry_alert failed for guild {guild_id}: {e}")
                 finally:
                     all_settings[guild_id]["last_run"]["rivalry"] = today
                     guild_fired = True
@@ -864,9 +895,13 @@ class MapTapBot(discord.Client):
                 and now.day == 1
                 and is_due("monthly_leaderboard")
             ):
-                await do_monthly_leaderboard(guild_id, settings)
-                all_settings[guild_id]["last_run"]["monthly_leaderboard"] = today
-                guild_fired = True
+                try:
+                    await do_monthly_leaderboard(guild_id, settings)
+                except Exception as e:
+                    print(f"⚠️ monthly_leaderboard failed for guild {guild_id}: {e}")
+                finally:
+                    all_settings[guild_id]["last_run"]["monthly_leaderboard"] = today
+                    guild_fired = True
 
             if guild_fired:
                 fired_any = True
@@ -876,6 +911,29 @@ class MapTapBot(discord.Client):
                 save_all_settings(all_settings, sha, f"MapTap: last_run update")
             except Exception as e:
                 print("⚠️ Failed to save last_run:", e)
+
+    @scheduler_tick.error
+    async def scheduler_tick_error(self, error: BaseException):
+        """
+        Last-resort safety net. discord.ext.tasks loops do not auto-restart
+        after an unhandled exception inside the loop body — they just stop.
+        Everything fallible above is already wrapped in try/except, so this
+        should rarely (ideally never) fire, but if something unexpected still
+        slips through we log it and restart the loop rather than silently
+        losing all future scheduled posts for this bot's lifetime.
+        """
+        print(f"⚠️ scheduler_tick crashed unexpectedly: {error!r}")
+        if not self.scheduler_tick.is_running():
+            self.scheduler_tick.start()
+            print("✅ scheduler_tick restarted after error")
+
+    @poll_topgg_votes.error
+    async def poll_topgg_votes_error(self, error: BaseException):
+        """Same safety net as scheduler_tick, for the votes poller."""
+        print(f"⚠️ poll_topgg_votes crashed unexpectedly: {error!r}")
+        if not self.poll_topgg_votes.is_running():
+            self.poll_topgg_votes.start()
+            print("✅ poll_topgg_votes restarted after error")
 
 client = MapTapBot()
 
