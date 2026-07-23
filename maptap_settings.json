@@ -2054,7 +2054,7 @@
     }
   },
   "753101371166818484": {
-    "enabled": false,
+    "enabled": true,
     "channel_id": 1529661776260632717,
     "admin_role_ids": [
       829215971906027550
