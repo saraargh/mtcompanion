@@ -2066,9 +2066,9 @@
       "last_score_date": "2026-07-23"
     },
     "alerts": {
-      "daily_post_enabled": true,
+      "daily_post_enabled": false,
       "daily_scoreboard_enabled": true,
-      "weekly_roundup_enabled": true,
+      "weekly_roundup_enabled": false,
       "rivalry_enabled": true,
       "monthly_leaderboard_enabled": true,
       "zero_score_roasts_enabled": true,
