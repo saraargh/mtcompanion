@@ -2059,7 +2059,7 @@
     "admin_role_ids": [
       829215971906027550
     ],
-    "timezone": "America/New_York",
+    "timezone": "Europe/London",
     "server_streak": {
       "current": 1,
       "best": 1,
@@ -2098,7 +2098,7 @@
       "daily_post": "2026-07-23",
       "daily_scoreboard": null,
       "weekly_roundup": null,
-      "rivalry": "2026-07-22",
+      "rivalry": null,
       "monthly_leaderboard": null
     }
   }
