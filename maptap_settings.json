@@ -2253,7 +2253,7 @@
   },
   "1441420566740340830": {
     "enabled": true,
-    "channel_id": null,
+    "channel_id": 1441420567814209569,
     "admin_role_ids": [],
     "timezone": "Europe/London",
     "server_streak": {
