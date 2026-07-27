@@ -2215,7 +2215,7 @@
       "last_score_date": null
     },
     "alerts": {
-      "daily_post_enabled": true,
+      "daily_post_enabled": false,
       "daily_scoreboard_enabled": true,
       "weekly_roundup_enabled": true,
       "rivalry_enabled": true,
@@ -2244,7 +2244,7 @@
       "date_range": 0
     },
     "last_run": {
-      "daily_post": "2026-07-27",
+      "daily_post": null,
       "daily_scoreboard": null,
       "weekly_roundup": null,
       "rivalry": null,
