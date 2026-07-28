@@ -2158,7 +2158,7 @@
     "admin_role_ids": [
       1283386724126425098
     ],
-    "timezone": "Indian/Christmas",
+    "timezone": "UTC",
     "server_streak": {
       "current": 1,
       "best": 1,
