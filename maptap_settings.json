@@ -2208,7 +2208,7 @@
       1201991301671952435,
       1197629892234334250
     ],
-    "timezone": "America/New_York",
+    "timezone": "UTC",
     "server_streak": {
       "current": 2,
       "best": 2,
