@@ -1466,9 +1466,9 @@
     "admin_role_ids": [],
     "timezone": "America/New_York",
     "server_streak": {
-      "current": 24,
-      "best": 24,
-      "last_score_date": "2026-08-02"
+      "current": 25,
+      "best": 25,
+      "last_score_date": "2026-08-03"
     },
     "alerts": {
       "daily_post_enabled": true,
