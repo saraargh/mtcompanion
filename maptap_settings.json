@@ -2302,8 +2302,10 @@
   "275140287163006977": {
     "enabled": true,
     "channel_id": 1531111105018204200,
-    "admin_role_ids": [],
-    "timezone": "Australia/Sydney",
+    "admin_role_ids": [
+      275141365694857216
+    ],
+    "timezone": "Europe/London",
     "server_streak": {
       "current": 0,
       "best": 0,
