@@ -864,8 +864,8 @@
     },
     "times": {
       "daily_post": "07:00",
-      "daily_scoreboard": "18:00",
-      "weekly_roundup": "18:00",
+      "daily_scoreboard": "22:00",
+      "weekly_roundup": "22:00",
       "rivalry": "14:00",
       "monthly_leaderboard": "07:00"
     },
