@@ -476,6 +476,16 @@ def default_user_stats() -> Dict[str, Any]:
 # =====================================================
 # STREAK / RANK HELPERS
 # =====================================================
+# Bot was offline for this window and wrote no data, so these dates are
+# excused from streak-breaking logic - they're skipped over entirely rather
+# than counted as missed days. Remove once no longer needed.
+OUTAGE_WINDOWS: List[Tuple[date, date]] = [
+    (date(2026, 8, 17), date(2026, 8, 21)),
+]
+
+def _is_excused(d: date) -> bool:
+    return any(start <= d <= end for start, end in OUTAGE_WINDOWS)
+
 def calculate_current_streak(guild_scores: Dict[str, Any], user_id: str, tz: ZoneInfo) -> int:
     played: List[date] = []
     for dkey, bucket in guild_scores.items():
@@ -489,15 +499,25 @@ def calculate_current_streak(guild_scores: Dict[str, Any], user_id: str, tz: Zon
 
     played_set = set(played)
     today = datetime.now(tz).date()
-    yesterday = today - timedelta(days=1)
 
-    if today not in played_set and yesterday not in played_set:
+    # Walk back from today, skipping excused (outage) days entirely so they
+    # neither extend nor break a streak, until we find the most recent day
+    # that's either played or a genuine (non-excused) miss.
+    d = today
+    while d not in played_set and _is_excused(d):
+        d -= timedelta(days=1)
+
+    yesterday_equiv = d - timedelta(days=1)
+    if d not in played_set and yesterday_equiv not in played_set and not _is_excused(yesterday_equiv):
         return 0
 
-    d = today if today in played_set else yesterday
+    if d not in played_set:
+        d = yesterday_equiv
+
     streak = 0
-    while d in played_set:
-        streak += 1
+    while d in played_set or _is_excused(d):
+        if d in played_set:
+            streak += 1
         d -= timedelta(days=1)
     return streak
 
@@ -617,20 +637,31 @@ def calculate_server_streaks(guild_scores: Dict[str, Any], tz: ZoneInfo) -> Tupl
             current_chain = 1
         best = max(best, current_chain)
 
-    # Current streak (must end today or yesterday)
+    # Current streak (must end today or yesterday, skipping excused
+    # outage days so a bot outage doesn't break a streak that was live
+    # when it went down)
     today = datetime.now(tz).date()
-    yesterday = today - timedelta(days=1)
+    played_set = set(played_dates)
 
-    if played_dates[-1] not in (today, yesterday):
+    d = today
+    while d not in played_set and _is_excused(d):
+        d -= timedelta(days=1)
+    yesterday_equiv = d - timedelta(days=1)
+
+    if d not in played_set and yesterday_equiv not in played_set and not _is_excused(yesterday_equiv):
         current = 0
     else:
-        current = 1
-        check_date = played_dates[-1]
-        played_set = set(played_dates)
-
-        while (check_date - timedelta(days=1)) in played_set:
-            current += 1
-            check_date -= timedelta(days=1)
+        check_date = d if d in played_set else yesterday_equiv
+        current = 1 if check_date in played_set else 0
+        while True:
+            prev = check_date - timedelta(days=1)
+            if prev in played_set:
+                current += 1
+                check_date = prev
+            elif _is_excused(prev):
+                check_date = prev
+            else:
+                break
 
     last_score_date = played_dates[-1].isoformat()
     return current, best, last_score_date
