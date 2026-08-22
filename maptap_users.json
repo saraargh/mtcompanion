@@ -2664,6 +2664,19 @@
         "date": "2026-08-01"
       },
       "current_streak": 21
+    },
+    "1518640210236280842": {
+      "total_points": 916,
+      "days_played": 1,
+      "best_streak": 1,
+      "personal_best": {
+        "score": 916,
+        "date": "2026-08-22"
+      },
+      "personal_low": {
+        "score": 916,
+        "date": "2026-08-22"
+      }
     }
   },
   "1271246140804698172": {
