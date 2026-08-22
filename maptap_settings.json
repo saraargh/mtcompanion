@@ -1419,9 +1419,9 @@
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 1,
+      "current": 2,
       "best": 36,
-      "last_score_date": "2026-08-21"
+      "last_score_date": "2026-08-22"
     },
     "alerts": {
       "daily_post_enabled": true,
