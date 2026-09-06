@@ -2482,10 +2482,10 @@
       "date_range": 0
     },
     "last_run": {
-      "daily_post": null,
+      "daily_post": "2026-09-06",
       "daily_scoreboard": null,
       "weekly_roundup": null,
-      "rivalry": null,
+      "rivalry": "2026-09-06",
       "monthly_leaderboard": null
     }
   }
