@@ -2497,9 +2497,9 @@
     ],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 1,
-      "best": 1,
-      "last_score_date": "2026-09-14"
+      "current": 0,
+      "best": 0,
+      "last_score_date": null
     },
     "alerts": {
       "daily_post_enabled": true,
@@ -2518,7 +2518,7 @@
       "config_issue": "\u26a0\ufe0f"
     },
     "times": {
-      "daily_post": "00:00",
+      "daily_post": "07:00",
       "daily_scoreboard": "23:30",
       "weekly_roundup": "23:45",
       "rivalry": "14:00",
@@ -2531,7 +2531,7 @@
       "date_range": 0
     },
     "last_run": {
-      "daily_post": "2026-09-14",
+      "daily_post": null,
       "daily_scoreboard": null,
       "weekly_roundup": null,
       "rivalry": null,
