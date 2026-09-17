@@ -2588,7 +2588,7 @@
     }
   },
   "1453531254199943334": {
-    "enabled": true,
+    "enabled": false,
     "channel_id": 1453531255361638432,
     "admin_role_ids": [
       1550224307227992197
@@ -2629,10 +2629,10 @@
       "date_range": 0
     },
     "last_run": {
-      "daily_post": "2026-09-17",
+      "daily_post": null,
       "daily_scoreboard": null,
       "weekly_roundup": null,
-      "rivalry": "2026-09-17",
+      "rivalry": null,
       "monthly_leaderboard": null
     }
   }
