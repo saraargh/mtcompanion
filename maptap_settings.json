@@ -2629,10 +2629,10 @@
       "date_range": 0
     },
     "last_run": {
-      "daily_post": null,
+      "daily_post": "2026-09-17",
       "daily_scoreboard": null,
       "weekly_roundup": null,
-      "rivalry": null,
+      "rivalry": "2026-09-17",
       "monthly_leaderboard": null
     }
   }
