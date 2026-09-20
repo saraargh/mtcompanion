@@ -4415,16 +4415,16 @@
       }
     },
     "125436532986216448": {
-      "total_points": 3130,
-      "days_played": 4,
-      "best_streak": 2,
+      "total_points": 3730,
+      "days_played": 5,
+      "best_streak": 3,
       "personal_best": {
         "score": 849,
         "date": "2026-09-19"
       },
       "personal_low": {
-        "score": 662,
-        "date": "2026-09-16"
+        "score": 600,
+        "date": "2026-09-20"
       }
     }
   },
