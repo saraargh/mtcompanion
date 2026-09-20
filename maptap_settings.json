@@ -2733,7 +2733,9 @@
   "830832801947058207": {
     "enabled": true,
     "channel_id": 1551306582912929952,
-    "admin_role_ids": [],
+    "admin_role_ids": [
+      1551306709668987003
+    ],
     "timezone": "Europe/London",
     "server_streak": {
       "current": 0,
@@ -2770,10 +2772,10 @@
       "date_range": 0
     },
     "last_run": {
-      "daily_post": "2026-09-20",
+      "daily_post": null,
       "daily_scoreboard": null,
       "weekly_roundup": null,
-      "rivalry": "2026-09-20",
+      "rivalry": null,
       "monthly_leaderboard": null
     }
   }
