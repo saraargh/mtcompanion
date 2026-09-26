@@ -842,9 +842,9 @@
     ],
     "timezone": "EST",
     "server_streak": {
-      "current": 34,
+      "current": 1,
       "best": 59,
-      "last_score_date": "2026-09-22"
+      "last_score_date": "2026-09-26"
     },
     "alerts": {
       "daily_post_enabled": true,
