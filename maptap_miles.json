@@ -48,5 +48,10 @@
     "miles": 0,
     "voted_at": null,
     "last_polled_vote": "2026-06-15T06:33:38.703050+00:00"
+  },
+  "309146156607209473": {
+    "miles": 0,
+    "voted_at": null,
+    "last_polled_vote": null
   }
 }
