@@ -2926,7 +2926,7 @@
   },
   "1550886340726493364": {
     "enabled": true,
-    "channel_id": null,
+    "channel_id": 1551174477449007154,
     "admin_role_ids": [],
     "timezone": "Europe/London",
     "server_streak": {
@@ -2964,10 +2964,10 @@
       "date_range": 0
     },
     "last_run": {
-      "daily_post": "2026-10-05",
+      "daily_post": null,
       "daily_scoreboard": null,
       "weekly_roundup": null,
-      "rivalry": "2026-10-05",
+      "rivalry": null,
       "monthly_leaderboard": null
     }
   }
