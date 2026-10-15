@@ -3073,9 +3073,9 @@
     "admin_role_ids": [],
     "timezone": "Europe/Helsinki",
     "server_streak": {
-      "current": 0,
-      "best": 0,
-      "last_score_date": null
+      "current": 1,
+      "best": 1,
+      "last_score_date": "2026-10-15"
     },
     "alerts": {
       "daily_post_enabled": true,
