@@ -3095,10 +3095,10 @@
     },
     "times": {
       "daily_post": "08:00",
-      "daily_scoreboard": "23:00",
-      "weekly_roundup": "23:00",
+      "daily_scoreboard": "23:55",
+      "weekly_roundup": "23:55",
       "rivalry": "08:00",
-      "monthly_leaderboard": "23:00"
+      "monthly_leaderboard": "23:55"
     },
     "minimum_days": {
       "this_week": 3,
