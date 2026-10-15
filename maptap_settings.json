@@ -3071,7 +3071,7 @@
     "enabled": true,
     "channel_id": 1559475427951640628,
     "admin_role_ids": [],
-    "timezone": "Europe/Helsinki",
+    "timezone": "Europe/London",
     "server_streak": {
       "current": 0,
       "best": 0,
@@ -3094,11 +3094,11 @@
       "config_issue": "\u26a0\ufe0f"
     },
     "times": {
-      "daily_post": "00:00",
-      "daily_scoreboard": "23:30",
-      "weekly_roundup": "23:45",
-      "rivalry": "14:00",
-      "monthly_leaderboard": "00:10"
+      "daily_post": "08:00",
+      "daily_scoreboard": "23:00",
+      "weekly_roundup": "23:00",
+      "rivalry": "08:00",
+      "monthly_leaderboard": "23:00"
     },
     "minimum_days": {
       "this_week": 3,
@@ -3107,10 +3107,10 @@
       "date_range": 0
     },
     "last_run": {
-      "daily_post": "2026-10-15",
+      "daily_post": null,
       "daily_scoreboard": null,
       "weekly_roundup": null,
-      "rivalry": "2026-10-15",
+      "rivalry": null,
       "monthly_leaderboard": null
     }
   }
