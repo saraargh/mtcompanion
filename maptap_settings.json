@@ -3081,7 +3081,7 @@
       "daily_post_enabled": true,
       "daily_scoreboard_enabled": true,
       "weekly_roundup_enabled": true,
-      "rivalry_enabled": true,
+      "rivalry_enabled": false,
       "monthly_leaderboard_enabled": true,
       "zero_score_roasts_enabled": true,
       "pb_messages_enabled": true,
@@ -3107,10 +3107,10 @@
       "date_range": 0
     },
     "last_run": {
-      "daily_post": "2026-10-15",
+      "daily_post": null,
       "daily_scoreboard": null,
       "weekly_roundup": null,
-      "rivalry": "2026-10-15",
+      "rivalry": null,
       "monthly_leaderboard": null
     }
   }
