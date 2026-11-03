@@ -3455,7 +3455,7 @@
   },
   "578489826928623616": {
     "enabled": false,
-    "channel_id": null,
+    "channel_id": 578489826928623618,
     "admin_role_ids": [],
     "timezone": "America/Chicago",
     "server_streak": {
