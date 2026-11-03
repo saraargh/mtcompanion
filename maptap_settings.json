@@ -3454,7 +3454,7 @@
     }
   },
   "578489826928623616": {
-    "enabled": true,
+    "enabled": false,
     "channel_id": null,
     "admin_role_ids": [],
     "timezone": "America/Chicago",
