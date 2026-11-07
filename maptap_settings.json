@@ -2979,9 +2979,9 @@
     "admin_role_ids": [],
     "timezone": "Europe/London",
     "server_streak": {
-      "current": 18,
+      "current": 1,
       "best": 18,
-      "last_score_date": "2026-11-05"
+      "last_score_date": "2026-11-07"
     },
     "alerts": {
       "daily_post_enabled": true,
