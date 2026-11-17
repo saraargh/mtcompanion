@@ -3644,7 +3644,7 @@
     }
   },
   "1487991995145130106": {
-    "enabled": true,
+    "enabled": false,
     "channel_id": 1572372599655370753,
     "admin_role_ids": [],
     "timezone": "Europe/London",
